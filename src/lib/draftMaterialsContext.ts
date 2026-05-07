@@ -37,7 +37,8 @@ export function getDraftContextCharLimit(): number {
     const n = parseInt(raw, 10)
     if (Number.isFinite(n) && n >= 10_000) return n
   }
-  return 100_000
+  // デフォルトを少し抑え、Vercel の関数時間超過を起こしにくくする
+  return 60_000
 }
 
 function lineStartIndex(s: string, pos: number): number {
