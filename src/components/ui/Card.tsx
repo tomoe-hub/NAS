@@ -4,6 +4,7 @@ interface CardProps {
   children: ReactNode
   className?: string
   padding?: 'none' | 'sm' | 'md' | 'lg'
+  raised?: boolean
 }
 
 const paddingStyles = {
@@ -13,15 +14,10 @@ const paddingStyles = {
   lg: 'p-8',
 }
 
-export default function Card({ children, className = '', padding = 'md' }: CardProps) {
+export default function Card({ children, className = '', padding = 'md', raised = false }: CardProps) {
   return (
     <div
-      className={`
-        bg-white rounded-xl border border-[#E2E8F0]
-        shadow-sm
-        ${paddingStyles[padding]}
-        ${className}
-      `}
+      className={`${raised ? 'nas-card-raised' : 'nas-card'} ${paddingStyles[padding]} ${className}`}
     >
       {children}
     </div>

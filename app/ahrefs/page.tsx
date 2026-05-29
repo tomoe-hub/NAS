@@ -354,8 +354,11 @@ ${row.keyword}
       {/* Header */}
       <div className="flex items-center justify-between mb-6">
         <div>
-          <h1 className="text-xl font-bold text-[#1A1A2E]">KW分析ダッシュボード</h1>
-          <p className="text-sm text-[#64748B] mt-1">Ahrefs CSVをインポートして、狙い目キーワードを分析</p>
+          <p className="text-xs font-bold tracking-[0.11em] uppercase mb-1" style={{ color: 'var(--primary)' }}>
+            Insight Dashboard
+          </p>
+          <h1 className="text-xl font-bold" style={{ color: 'var(--ink)' }}>KW分析ダッシュボード</h1>
+          <p className="text-sm mt-1" style={{ color: 'var(--text-muted)' }}>Ahrefs CSVをインポートして、狙い目キーワードを分析</p>
         </div>
         <div className="flex gap-2">
           <input
@@ -369,8 +372,11 @@ ${row.keyword}
           <button
             onClick={() => fileInputRef.current?.click()}
             disabled={uploading}
-            className="inline-flex items-center gap-2 px-4 py-2.5 rounded-lg text-sm font-semibold text-white transition-colors"
-            style={{ backgroundColor: '#002C93' }}
+            className="inline-flex items-center gap-2 min-h-[40px] px-4 rounded-[10px] text-sm font-semibold text-white transition-all hover:brightness-110 active:scale-[0.97]"
+            style={{
+              background: 'linear-gradient(135deg, #1267f2 0%, #18a9e6 100%)',
+              boxShadow: '0 4px 14px rgba(18,103,242,0.35), inset 0 1px 0 rgba(255,255,255,0.22)',
+            }}
           >
             <Upload size={16} />
             {uploading ? 'インポート中...' : 'CSVインポート'}
@@ -706,7 +712,7 @@ ${row.keyword}
 
 function SummaryCard({ label, value, color, icon }: { label: string; value: number; color: string; icon?: React.ReactNode }) {
   return (
-    <div className="bg-white rounded-xl border border-[#E2E8F0] px-4 py-3.5">
+    <div className="rounded-[12px] px-4 py-3.5" style={{ background: 'var(--surface-raised)', border: '1px solid var(--border)', boxShadow: 'var(--shadow-sm)' }}>
       <div className="flex items-center gap-2 text-xs font-medium mb-1" style={{ color }}>
         {icon}
         {label}

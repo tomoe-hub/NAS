@@ -91,36 +91,57 @@ export default function KeywordsPage() {
 
   const isEditorOpen = isCreating || editingId !== null
 
+  const nasInput = 'w-full px-4 py-2.5 rounded-[10px] text-sm transition-all duration-150 outline-none'
+  const nasInputStyle = {
+    border: '1px solid var(--border)',
+    background: 'rgba(255,255,255,0.92)',
+    color: 'var(--ink)',
+    boxShadow: 'inset 0 1px 3px rgba(20,44,92,0.05)',
+  }
+
   return (
     <div className="w-full py-8 max-w-4xl mx-auto">
-      <div className="flex items-center justify-between mb-8">
+      {/* Header */}
+      <div className="flex items-center justify-between mb-6">
         <div>
-          <h1 className="text-2xl font-bold text-[#1A1A2E] mb-2">キーワードライブラリ</h1>
-          <p className="text-sm text-[#64748B]">
-            よく使うキーワードを保存して、一次執筆でいつでも呼び出せるように管理します。クラウドに保存されるため端末をまたいで利用できます。
+          <p className="text-xs font-bold tracking-[0.11em] uppercase mb-1" style={{ color: 'var(--primary)' }}>
+            Keyword Workspace
+          </p>
+          <h1 className="text-xl font-bold mb-1" style={{ color: 'var(--ink)' }}>キーワードライブラリ</h1>
+          <p className="text-sm" style={{ color: 'var(--text-muted)' }}>
+            よく使うキーワードセットを保存・管理します。クラウド保存で端末をまたいで利用できます。
           </p>
         </div>
         {!isEditorOpen && (
           <Button variant="primary" onClick={handleCreateNew}>
-            <Plus size={18} className="mr-2" />
+            <Plus size={16} />
             キーワードを追加
           </Button>
         )}
       </div>
 
+      {/* Editor */}
       {isEditorOpen && (
-        <div className="bg-white border border-[#E2E8F0] rounded-xl p-6 mb-8 shadow-sm">
-          <div className="flex items-center justify-between mb-4">
-            <h2 className="text-lg font-bold text-[#1A1A2E]">
+        <div
+          className="rounded-[16px] p-6 mb-6"
+          style={{ background: 'var(--surface-raised)', border: '1px solid var(--border)', boxShadow: 'var(--shadow-md)' }}
+        >
+          <div className="flex items-center justify-between mb-5">
+            <h2 className="text-base font-bold" style={{ color: 'var(--ink)' }}>
               {isCreating ? '新しいキーワードセット' : 'キーワードセットを編集'}
             </h2>
-            <button type="button" onClick={handleCancel} className="text-[#64748B] hover:text-[#1A1A2E]">
-              <X size={20} />
+            <button
+              type="button"
+              onClick={handleCancel}
+              className="p-1.5 rounded-[8px] transition-colors hover:bg-[rgba(20,44,92,0.06)]"
+              style={{ color: 'var(--text-muted)' }}
+            >
+              <X size={18} />
             </button>
           </div>
           <div className="space-y-4">
             <div>
-              <label className="block text-sm font-semibold text-[#1A1A2E] mb-1.5">
+              <label className="block text-sm font-semibold mb-1.5" style={{ color: 'var(--ink)' }}>
                 セット名（用途など）
               </label>
               <input
@@ -128,34 +149,30 @@ export default function KeywordsPage() {
                 value={editTitle}
                 onChange={e => setEditTitle(e.target.value)}
                 placeholder="例：事業承継コラム用"
-                className="w-full px-4 py-2.5 rounded-lg border border-[#E2E8F0] focus:ring-2 focus:ring-[#1B2A4A]/30 focus:border-[#1B2A4A] outline-none transition-all text-sm"
+                className={nasInput}
+                style={nasInputStyle}
               />
             </div>
             <div>
-              <label className="block text-sm font-semibold text-[#1A1A2E] mb-1.5">
+              <label className="block text-sm font-semibold mb-1.5" style={{ color: 'var(--ink)' }}>
                 ターゲットキーワード（カンマ区切り）
               </label>
               <textarea
                 value={editContent}
                 onChange={e => setEditContent(e.target.value)}
-                placeholder="例：事業承継 M&A, 中小企業 事業承継, 後継者不足, M&A 相談, デューデリジェンス, アドバイザー 選び方"
-                className="w-full px-4 py-3 rounded-lg border border-[#E2E8F0] focus:ring-2 focus:ring-[#1B2A4A]/30 focus:border-[#1B2A4A] outline-none transition-all text-sm resize-y min-h-[120px]"
+                placeholder="例：事業承継 M&A, 中小企業 事業承継, 後継者不足"
+                className={`${nasInput} resize-y min-h-[120px]`}
+                style={nasInputStyle}
               />
             </div>
             <div className="flex justify-end gap-3 pt-2">
-              <Button variant="ghost" onClick={handleCancel}>
-                キャンセル
-              </Button>
+              <Button variant="ghost" onClick={handleCancel}>キャンセル</Button>
               <Button
                 variant="primary"
                 disabled={!editTitle.trim() || !editContent.trim() || saving}
                 onClick={() => void handleSave()}
               >
-                {saving ? (
-                  <Loader2 size={18} className="mr-2 animate-spin" />
-                ) : (
-                  <Check size={18} className="mr-2" />
-                )}
+                {saving ? <Loader2 size={15} className="animate-spin" /> : <Check size={15} />}
                 保存する
               </Button>
             </div>
@@ -163,43 +180,56 @@ export default function KeywordsPage() {
         </div>
       )}
 
-      <div className="space-y-4">
+      {/* List */}
+      <div className="space-y-3">
         {loading ? (
-          <div className="bg-white border border-[#E2E8F0] rounded-xl p-12 flex items-center justify-center gap-3 text-[#64748B]">
-            <Loader2 size={20} className="animate-spin" />
-            <span>読み込み中...</span>
+          <div
+            className="rounded-[16px] p-12 flex items-center justify-center gap-3"
+            style={{ background: 'var(--surface-raised)', border: '1px solid var(--border)' }}
+          >
+            <Loader2 size={18} className="animate-spin" style={{ color: 'var(--primary)' }} />
+            <span className="text-sm" style={{ color: 'var(--text-muted)' }}>読み込み中...</span>
           </div>
         ) : keywords.length === 0 && !isEditorOpen ? (
-          <div className="bg-white border border-[#E2E8F0] rounded-xl p-12 text-center text-[#64748B]">
-            保存されているキーワードセットはありません。
+          <div
+            className="rounded-[16px] p-14 text-center"
+            style={{ background: 'var(--surface-raised)', border: '1.5px dashed var(--border)' }}
+          >
+            <p className="font-medium mb-1" style={{ color: 'var(--text-muted)' }}>保存されているキーワードセットはありません</p>
+            <p className="text-sm" style={{ color: 'var(--text-faint)' }}>上の「キーワードを追加」から最初のセットを作成してください</p>
           </div>
         ) : (
           keywords.map(k => (
             <div
               key={k.id}
-              className="bg-white border border-[#E2E8F0] rounded-xl p-5 hover:border-[#CBD5E1] transition-all group"
+              className="group rounded-[14px] p-5 transition-all duration-150 hover:-translate-y-px"
+              style={{ background: 'var(--surface-raised)', border: '1px solid var(--border)', boxShadow: 'var(--shadow-sm)' }}
+              onMouseEnter={e => { (e.currentTarget as HTMLElement).style.boxShadow = 'var(--shadow-md)' }}
+              onMouseLeave={e => { (e.currentTarget as HTMLElement).style.boxShadow = 'var(--shadow-sm)' }}
             >
               <div className="flex items-start justify-between">
                 <div className="flex-1 min-w-0 pr-4">
-                  <h3 className="font-bold text-[#1A1A2E] text-base mb-2">{k.title}</h3>
-                  <p className="text-sm text-[#64748B] whitespace-pre-wrap line-clamp-3">{k.content}</p>
+                  <h3 className="font-bold text-base mb-2" style={{ color: 'var(--ink)' }}>{k.title}</h3>
+                  <p className="text-sm whitespace-pre-wrap line-clamp-3" style={{ color: 'var(--text-muted)' }}>{k.content}</p>
                 </div>
-                <div className="flex items-center gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
+                <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
                   <button
                     type="button"
                     onClick={() => handleEdit(k)}
-                    className="p-2 text-[#64748B] hover:text-[#1B2A4A] hover:bg-[#F1F5F9] rounded-lg transition-colors"
+                    className="p-2 rounded-[8px] transition-colors hover:bg-[rgba(18,103,242,0.08)]"
+                    style={{ color: 'var(--text-muted)' }}
                     title="編集"
                   >
-                    <Pencil size={18} />
+                    <Pencil size={16} />
                   </button>
                   <button
                     type="button"
                     onClick={() => handleRequestDelete(k)}
-                    className="p-2 text-[#64748B] hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors"
+                    className="p-2 rounded-[8px] transition-colors hover:bg-red-50"
+                    style={{ color: 'var(--danger)' }}
                     title="削除"
                   >
-                    <Trash2 size={18} />
+                    <Trash2 size={16} />
                   </button>
                 </div>
               </div>
@@ -208,26 +238,31 @@ export default function KeywordsPage() {
         )}
       </div>
 
+      {/* Delete modal */}
       {deleteTarget && (
-        <div className="fixed inset-0 z-40 flex items-center justify-center bg-black/40">
-          <div className="bg-white rounded-2xl border border-[#E2E8F0] shadow-xl max-w-md w-full mx-4 p-6">
+        <div
+          className="fixed inset-0 z-40 flex items-center justify-center"
+          style={{ background: 'rgba(10,20,50,0.45)', backdropFilter: 'blur(4px)' }}
+        >
+          <div
+            className="rounded-[18px] max-w-md w-full mx-4 p-6"
+            style={{ background: 'var(--surface-raised)', border: '1px solid var(--border)', boxShadow: 'var(--shadow-lg)' }}
+          >
             <div className="flex items-start justify-between mb-4">
               <div>
-                <h2 className="text-base font-bold text-[#1A1A2E] mb-1">このキーワードセットを削除しますか？</h2>
-                <p className="text-xs text-[#64748B]">
-                  {`「${deleteTarget.title.slice(0, 30)}${deleteTarget.title.length > 30 ? '…' : ''}」を削除します。よろしいですか？`}
+                <h2 className="text-base font-bold mb-1" style={{ color: 'var(--ink)' }}>このキーワードセットを削除しますか？</h2>
+                <p className="text-sm" style={{ color: 'var(--text-muted)' }}>
+                  {`「${deleteTarget.title.slice(0, 30)}${deleteTarget.title.length > 30 ? '…' : ''}」を削除します。`}
                 </p>
               </div>
-              <button type="button" onClick={handleCloseDeleteModal} className="text-[#94A3B8] hover:text-[#1A1A2E]">
-                <X size={18} />
+              <button type="button" onClick={handleCloseDeleteModal} className="p-1.5 rounded-[8px] transition-colors hover:bg-[rgba(20,44,92,0.06)]" style={{ color: 'var(--text-muted)' }}>
+                <X size={16} />
               </button>
             </div>
             <div className="flex justify-end gap-3 pt-2">
-              <Button variant="ghost" onClick={handleCloseDeleteModal}>
-                キャンセル
-              </Button>
-              <Button variant="primary" disabled={saving} onClick={() => void handleConfirmDelete()}>
-                {saving ? <Loader2 size={16} className="mr-2 animate-spin" /> : null}
+              <Button variant="ghost" onClick={handleCloseDeleteModal}>キャンセル</Button>
+              <Button variant="destructive" disabled={saving} onClick={() => void handleConfirmDelete()}>
+                {saving ? <Loader2 size={14} className="animate-spin" /> : null}
                 削除する
               </Button>
             </div>

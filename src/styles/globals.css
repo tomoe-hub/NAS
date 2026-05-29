@@ -2,42 +2,181 @@
 @tailwind components;
 @tailwind utilities;
 
+/* =====================================================
+   NAS Design Tokens — Light-first Precision AI Writing Console
+   ===================================================== */
 :root {
-  /* クライアントHPブランドカラー */
-  --color-client: #002C93;
-  --color-client-hover: #0039b3;
-  --color-client-border: #0039b3;
-  --color-navy: #1B2A4A;
-  --color-red: #C0392B;
-  --color-light-navy: #2C3E6B;
-  --color-page-bg: #F5F7FA;
-  --color-card-bg: #FFFFFF;
-  --color-text-main: #1A1A2E;
-  --color-text-muted: #64748B;
-  --color-border: #E2E8F0;
-  --color-success: #16A34A;
+  /* ---- Color ---- */
+  --bg:              #eef5ff;
+  --surface:         rgba(255,255,255,0.82);
+  --surface-solid:   #ffffff;
+  --surface-raised:  #ffffff;
+  --surface-soft:    rgba(255,255,255,0.60);
+
+  --ink:             #10213f;
+  --text:            #10213f;
+  --text-muted:      #64788a;
+  --text-faint:      #8fa0b3;
+
+  --border:          rgba(20,44,92,0.11);
+  --border-strong:   rgba(20,44,92,0.18);
+
+  --primary:         #1267f2;
+  --primary-hover:   #0a50d4;
+  --primary-deep:    #0a3fae;
+  --cyan:            #18a9e6;
+  --success:         #0f9f6e;
+  --warning:         #c77916;
+  --danger:          #e53e4f;
+
+  /* ---- Legacy aliases kept for backward-compat ---- */
+  --color-client:        var(--primary);
+  --color-client-hover:  var(--primary-hover);
+  --color-client-border: var(--primary-hover);
+  --color-navy:          #1B2A4A;
+  --color-red:           var(--danger);
+  --color-light-navy:    #2C3E6B;
+  --color-page-bg:       var(--bg);
+  --color-card-bg:       var(--surface-solid);
+  --color-text-main:     var(--ink);
+  --color-text-muted:    var(--text-muted);
+  --color-border:        rgba(20,44,92,0.11);
+  --color-success:       var(--success);
+
+  /* ---- Shadow ---- */
+  --shadow-sm:  0 1px 2px rgba(20,44,92,0.06), 0 8px 18px rgba(20,44,92,0.08);
+  --shadow-md:  0 1px 2px rgba(20,44,92,0.05), 0 12px 28px rgba(20,44,92,0.11), 0 30px 70px rgba(19,84,185,0.10);
+  --shadow-lg:  0 1px 2px rgba(20,44,92,0.05), 0 18px 46px rgba(20,44,92,0.14), 0 60px 120px rgba(19,84,185,0.14);
+  --shadow-border: 0 0 0 1px var(--border);
+
+  /* ---- Radius ---- */
+  --radius-sm: 10px;
+  --radius-md: 16px;
+  --radius-lg: 24px;
+
+  /* ---- Motion ---- */
+  --ease-out:   cubic-bezier(0.16,1,0.3,1);
+  --dur-fast:   90ms;
+  --dur-base:   160ms;
+  --dur-slow:   220ms;
 }
 
-* {
-  box-sizing: border-box;
+/* =====================================================
+   Base Reset
+   ===================================================== */
+*, *::before, *::after { box-sizing: border-box; }
+
+html {
+  font-variant-numeric: tabular-nums;
 }
 
 body {
-  background-color: var(--color-page-bg);
-  color: var(--color-text-main);
-  font-family: 'Noto Sans JP', sans-serif;
+  margin: 0;
+  min-height: 100dvh;
+  color: var(--ink);
+  font-family: Inter, "Noto Sans JP", "Hiragino Sans", "Yu Gothic", system-ui, sans-serif;
   font-weight: 400;
+  /* ---- ambient SaaS background ---- */
+  background:
+    radial-gradient(circle at 15% 12%, rgba(51,118,255,0.18), transparent 34%),
+    radial-gradient(circle at 85% 4%,  rgba(24,169,230,0.15), transparent 32%),
+    radial-gradient(circle at 70% 86%, rgba(99,102,241,0.13), transparent 34%),
+    linear-gradient(135deg, #f8fbff 0%, #eef6ff 42%, #f7fbff 100%);
+  overflow-x: clip;
+}
+
+/* subtle grid */
+body::before {
+  content: "";
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  z-index: 0;
+  opacity: 0.42;
+  background-image:
+    linear-gradient(rgba(37,71,125,0.04) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(37,71,125,0.04) 1px, transparent 1px);
+  background-size: 48px 48px;
+  mask-image: radial-gradient(ellipse at 48% 32%, black 0%, rgba(0,0,0,0.7) 40%, transparent 74%);
+}
+
+/* noise grain */
+body::after {
+  content: "";
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  z-index: 0;
+  opacity: 0.035;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='120' height='120'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.82' numOctaves='2' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='0.65'/%3E%3C/svg%3E");
+}
+
+/* page content sits above pseudo-elements */
+#__next, .nas-root {
+  position: relative;
+  z-index: 1;
 }
 
 h1, h2, h3, h4, h5, h6 {
-  font-family: 'Noto Sans JP', sans-serif;
+  font-family: Inter, "Noto Sans JP", system-ui, sans-serif;
   font-weight: 700;
+  color: var(--ink);
 }
 
 .font-mono {
-  font-family: 'DM Mono', monospace;
+  font-family: "DM Mono", ui-monospace, monospace;
 }
 
+/* =====================================================
+   NAS Card utility
+   ===================================================== */
+.nas-card {
+  background: var(--surface-raised);
+  border-radius: var(--radius-md);
+  border: 1px solid var(--border);
+  box-shadow: var(--shadow-sm);
+}
+
+.nas-card-raised {
+  background: var(--surface-raised);
+  border-radius: var(--radius-md);
+  border: 1px solid rgba(20,44,92,0.09);
+  box-shadow: var(--shadow-md);
+}
+
+/* =====================================================
+   Status badges
+   ===================================================== */
+.nas-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 2px 8px;
+  border-radius: 999px;
+  font-size: 11px;
+  font-weight: 700;
+  line-height: 1.6;
+  white-space: nowrap;
+}
+
+.nas-badge-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 99px;
+  flex: none;
+}
+
+/* =====================================================
+   Focus ring
+   ===================================================== */
+:focus-visible {
+  outline: 2px solid var(--primary);
+  outline-offset: 2px;
+}
+
+/* =====================================================
+   Animations
+   ===================================================== */
 @keyframes spin {
   from { transform: rotate(0deg); }
   to   { transform: rotate(360deg); }
@@ -51,4 +190,35 @@ h1, h2, h3, h4, h5, h6 {
 @keyframes pulse {
   0%, 100% { opacity: 1;   transform: scale(1); }
   50%       { opacity: 0.5; transform: scale(0.85); }
+}
+
+@keyframes loader-ring {
+  0%, 100% { box-shadow: 0 0 0 0 rgba(18,103,242,0.30); }
+  50%       { box-shadow: 0 0 0 6px rgba(18,103,242,0); }
+}
+
+@keyframes loader-dot-soft {
+  0%, 100% { opacity: 0.35; transform: scale(0.92); }
+  50%       { opacity: 1;    transform: scale(1); }
+}
+
+@keyframes nas-skeleton {
+  0%, 100% { opacity: 0.45; }
+  50%       { opacity: 0.80; }
+}
+
+.animate-loader-ring     { animation: loader-ring      1.75s ease-out infinite; }
+.animate-loader-dot-soft { animation: loader-dot-soft  1.1s  ease-in-out infinite; }
+.nas-skeleton            { animation: nas-skeleton      1.4s  ease-in-out infinite; }
+
+/* =====================================================
+   Reduced motion
+   ===================================================== */
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration:       0.01ms !important;
+    animation-iteration-count: 1     !important;
+    transition-duration:      0.01ms !important;
+    scroll-behavior: auto             !important;
+  }
 }

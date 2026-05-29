@@ -177,15 +177,15 @@ export default function ArticleInput({
     <div className="w-full pt-6 pb-12">
       <div className="flex gap-8 items-start">
         <div className="flex-1 min-w-0 flex flex-col gap-5">
-          <Card className="relative overflow-hidden">
+          <Card raised className="relative overflow-hidden">
             {/* 生成中のローディングオーバーレイ */}
             {generating && <GeneratingLoader step={generatingStep} />}
 
             <div className="flex items-center justify-between mb-5">
               <div>
-                <h2 className="text-base font-bold text-[#1A1A2E] mb-0.5">一次執筆</h2>
-                <p className="text-sm text-[#64748B]">
-                  プロンプトで指示を出し、Geminiが記事のタイトル・本文を生成します。
+                <h2 className="text-base font-bold mb-0.5" style={{ color: 'var(--ink)' }}>一次執筆</h2>
+                <p className="text-sm" style={{ color: 'var(--text-muted)' }}>
+                  プロンプトで指示を出し、AIが記事のタイトル・本文を生成します。
                 </p>
               </div>
               {hasDraft && onClear && (
@@ -204,7 +204,7 @@ export default function ArticleInput({
             <div className="space-y-5">
               <div>
                 <div className="flex items-center justify-between mb-1.5 relative">
-                  <label className="block text-sm font-semibold text-[#1A1A2E]">
+                  <label className="block text-sm font-semibold" style={{ color: 'var(--ink)' }}>
                     プロンプト（指示）
                   </label>
                   {savedPrompts.length > 0 && (
@@ -212,7 +212,8 @@ export default function ArticleInput({
                       <button
                         type="button"
                         onClick={() => setShowPromptDropdown(!showPromptDropdown)}
-                        className="text-xs text-[#002C93] font-medium hover:underline flex items-center gap-1"
+                        className="text-xs font-semibold hover:underline flex items-center gap-1"
+                        style={{ color: 'var(--primary)' }}
                       >
                         保存済みプロンプトから入力 <ChevronDown size={14} />
                       </button>
@@ -237,30 +238,40 @@ export default function ArticleInput({
                   value={prompt}
                   onChange={e => setPrompt(e.target.value)}
                   placeholder="例：事業承継の基礎について、相談先の種類・手順・注意点を分かりやすく2000字程度で記事を書いてください"
-                  className="
-                    w-full px-4 py-3 rounded-lg border border-[#E2E8F0]
-                    text-[#1A1A2E] placeholder-[#CBD5E1]
-                    focus:outline-none focus:ring-2 focus:ring-[#1B2A4A]/30 focus:border-[#1B2A4A]
-                    transition-all text-sm resize-y
-                    min-h-[140px]
-                  "
+                  className="w-full px-4 py-3 rounded-[10px] text-sm resize-y min-h-[140px] transition-all duration-150"
+                  style={{
+                    border: '1px solid rgba(20,44,92,0.13)',
+                    background: 'rgba(255,255,255,0.92)',
+                    color: 'var(--ink)',
+                    boxShadow: 'inset 0 1px 3px rgba(20,44,92,0.06)',
+                    outline: 'none',
+                  }}
+                  onFocus={e => {
+                    e.currentTarget.style.borderColor = 'var(--primary)'
+                    e.currentTarget.style.boxShadow = '0 0 0 3px rgba(18,103,242,0.15), inset 0 1px 3px rgba(20,44,92,0.04)'
+                  }}
+                  onBlur={e => {
+                    e.currentTarget.style.borderColor = 'rgba(20,44,92,0.13)'
+                    e.currentTarget.style.boxShadow = 'inset 0 1px 3px rgba(20,44,92,0.06)'
+                  }}
                   disabled={generating}
                 />
               </div>
 
               <div>
                 <div className="flex items-center justify-between mb-2 gap-2">
-                  <label className="block text-sm font-semibold text-[#1A1A2E] min-w-0">
+                  <label className="block text-sm font-semibold min-w-0" style={{ color: 'var(--ink)' }}>
                     ターゲットキーワード
-                    <span className="block mt-0.5 text-xs font-semibold text-red-600">
-                      ※　必須　必ず設定してください！
+                    <span className="block mt-0.5 text-xs font-semibold" style={{ color: 'var(--danger)' }}>
+                      ※ 必須 — 必ず設定してください
                     </span>
                   </label>
                   <div className="relative shrink-0" ref={keywordDropdownRef}>
                     <button
                       type="button"
                       onClick={() => setShowKeywordDropdown(!showKeywordDropdown)}
-                      className="text-xs text-[#002C93] font-medium hover:underline flex items-center gap-1 whitespace-nowrap"
+                      className="text-xs font-semibold hover:underline flex items-center gap-1 whitespace-nowrap"
+                      style={{ color: 'var(--primary)' }}
                     >
                       保存済みキーワードから入力 <ChevronDown size={14} />
                     </button>
@@ -299,7 +310,22 @@ export default function ArticleInput({
                   value={article.targetKeyword ?? ''}
                   onChange={e => onTargetKeywordChange(e.target.value)}
                   placeholder="例：事業承継 M&A, 中小企業 事業承継, 後継者不足, M&A 相談, デューデリジェンス, アドバイザー 選び方"
-                  className="w-full px-4 py-3 rounded-lg text-sm border border-[#E2E8F0] text-[#1A1A2E] bg-[#FAFBFC] focus:outline-none focus:ring-2 focus:ring-[#1B2A4A]/30"
+                  className="w-full px-4 py-3 rounded-[10px] text-sm transition-all duration-150"
+                  style={{
+                    border: '1px solid rgba(20,44,92,0.13)',
+                    background: 'rgba(255,255,255,0.92)',
+                    color: 'var(--ink)',
+                    boxShadow: 'inset 0 1px 3px rgba(20,44,92,0.06)',
+                    outline: 'none',
+                  }}
+                  onFocus={e => {
+                    e.currentTarget.style.borderColor = 'var(--primary)'
+                    e.currentTarget.style.boxShadow = '0 0 0 3px rgba(18,103,242,0.15), inset 0 1px 3px rgba(20,44,92,0.04)'
+                  }}
+                  onBlur={e => {
+                    e.currentTarget.style.borderColor = 'rgba(20,44,92,0.13)'
+                    e.currentTarget.style.boxShadow = 'inset 0 1px 3px rgba(20,44,92,0.06)'
+                  }}
                 />
               </div>
 
@@ -331,7 +357,7 @@ export default function ArticleInput({
                 <hr className="my-6 border-[#E2E8F0]" />
                 <div className="space-y-5">
                   <div>
-                    <label className="block text-sm font-semibold text-[#1A1A2E] mb-1.5">
+                    <label className="block text-sm font-semibold mb-1.5" style={{ color: 'var(--ink)' }}>
                       記事タイトル
                     </label>
                     <input
@@ -339,29 +365,48 @@ export default function ArticleInput({
                       value={article.title}
                       onChange={e => onTitleChange(e.target.value)}
                       placeholder="記事のタイトル"
-                      className="
-                        w-full px-4 py-2.5 rounded-lg border border-[#E2E8F0]
-                        text-[#1A1A2E] placeholder-[#CBD5E1]
-                        focus:outline-none focus:ring-2 focus:ring-[#1B2A4A]/30 focus:border-[#1B2A4A]
-                        transition-all text-sm
-                      "
+                      className="w-full px-4 py-2.5 rounded-[10px] text-sm transition-all duration-150"
+                      style={{
+                        border: '1px solid rgba(20,44,92,0.13)',
+                        background: 'rgba(255,255,255,0.92)',
+                        color: 'var(--ink)',
+                        boxShadow: 'inset 0 1px 3px rgba(20,44,92,0.06)',
+                        outline: 'none',
+                      }}
+                      onFocus={e => {
+                        e.currentTarget.style.borderColor = 'var(--primary)'
+                        e.currentTarget.style.boxShadow = '0 0 0 3px rgba(18,103,242,0.15), inset 0 1px 3px rgba(20,44,92,0.04)'
+                      }}
+                      onBlur={e => {
+                        e.currentTarget.style.borderColor = 'rgba(20,44,92,0.13)'
+                        e.currentTarget.style.boxShadow = 'inset 0 1px 3px rgba(20,44,92,0.06)'
+                      }}
                     />
                   </div>
                   <div>
-                    <label className="block text-sm font-semibold text-[#1A1A2E] mb-1.5">
+                    <label className="block text-sm font-semibold mb-1.5" style={{ color: 'var(--ink)' }}>
                       記事本文
                     </label>
                     <textarea
                       value={article.originalContent}
                       onChange={e => onContentChange(e.target.value)}
                       placeholder="記事本文"
-                      className="
-                        w-full px-4 py-3 rounded-lg border border-[#E2E8F0]
-                        text-[#1A1A2E] placeholder-[#CBD5E1]
-                        focus:outline-none focus:ring-2 focus:ring-[#1B2A4A]/30 focus:border-[#1B2A4A]
-                        transition-all text-sm resize-y
-                        min-h-[320px]
-                      "
+                      className="w-full px-4 py-3 rounded-[10px] text-sm resize-y min-h-[320px] transition-all duration-150"
+                      style={{
+                        border: '1px solid rgba(20,44,92,0.13)',
+                        background: 'rgba(255,255,255,0.92)',
+                        color: 'var(--ink)',
+                        boxShadow: 'inset 0 1px 3px rgba(20,44,92,0.06)',
+                        outline: 'none',
+                      }}
+                      onFocus={e => {
+                        e.currentTarget.style.borderColor = 'var(--primary)'
+                        e.currentTarget.style.boxShadow = '0 0 0 3px rgba(18,103,242,0.15), inset 0 1px 3px rgba(20,44,92,0.04)'
+                      }}
+                      onBlur={e => {
+                        e.currentTarget.style.borderColor = 'rgba(20,44,92,0.13)'
+                        e.currentTarget.style.boxShadow = 'inset 0 1px 3px rgba(20,44,92,0.06)'
+                      }}
                     />
                     <div className="flex justify-end mt-1.5">{charBadge()}</div>
                   </div>
@@ -373,7 +418,7 @@ export default function ArticleInput({
                     onClick={onNext}
                     className="py-4 px-8 h-auto"
                   >
-                    <span className="font-bold text-base">Geminiで推敲する</span>
+                    <span className="font-bold text-base">内容を推敲する</span>
                     <ArrowRight size={18} className="ml-2" />
                   </Button>
                 </div>

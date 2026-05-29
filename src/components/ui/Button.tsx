@@ -2,7 +2,7 @@
 
 import { ButtonHTMLAttributes, CSSProperties, ReactNode } from 'react'
 
-type ButtonVariant = 'primary' | 'ghost' | 'navy'
+type ButtonVariant = 'primary' | 'secondary' | 'ghost' | 'navy' | 'destructive'
 
 interface ButtonProps extends ButtonHTMLAttributes<HTMLButtonElement> {
   variant?: ButtonVariant
@@ -11,28 +11,51 @@ interface ButtonProps extends ButtonHTMLAttributes<HTMLButtonElement> {
   loading?: boolean
 }
 
-const gradientBase: CSSProperties = {
-  background: 'linear-gradient(135deg, #0055ff 0%, #00b4ff 100%)',
-  border: 'none',
-  boxShadow: '0 4px 15px rgba(0,85,255,0.35), inset 0 1px 0 rgba(255,255,255,0.25)',
+const variantStyles: Record<ButtonVariant, { cls: string; style?: CSSProperties }> = {
+  primary: {
+    cls: 'text-white font-semibold hover:brightness-110 active:scale-[0.97] disabled:opacity-40',
+    style: {
+      background: 'linear-gradient(135deg, #1267f2 0%, #18a9e6 100%)',
+      boxShadow: '0 4px 14px rgba(18,103,242,0.38), inset 0 1px 0 rgba(255,255,255,0.22)',
+    },
+  },
+  secondary: {
+    cls: 'font-semibold hover:bg-[#f1f6ff] active:scale-[0.97] disabled:opacity-40',
+    style: {
+      color: '#1267f2',
+      background: 'rgba(18,103,242,0.08)',
+      border: '1px solid rgba(18,103,242,0.22)',
+      boxShadow: '0 1px 2px rgba(18,103,242,0.06)',
+    },
+  },
+  ghost: {
+    cls: 'text-[#10213f] font-semibold hover:bg-white/80 active:scale-[0.97] disabled:opacity-40',
+    style: {
+      background: 'rgba(255,255,255,0.60)',
+      border: '1px solid rgba(20,44,92,0.13)',
+      boxShadow: '0 1px 3px rgba(20,44,92,0.07)',
+    },
+  },
+  navy: {
+    cls: 'text-white font-semibold hover:brightness-110 active:scale-[0.97] disabled:opacity-40',
+    style: {
+      background: 'linear-gradient(135deg, #0a3fae 0%, #1267f2 100%)',
+      boxShadow: '0 4px 12px rgba(10,63,174,0.35), inset 0 1px 0 rgba(255,255,255,0.18)',
+    },
+  },
+  destructive: {
+    cls: 'text-white font-semibold hover:brightness-110 active:scale-[0.97] disabled:opacity-40',
+    style: {
+      background: '#e53e4f',
+      boxShadow: '0 4px 12px rgba(229,62,79,0.30)',
+    },
+  },
 }
 
-const navyGradientBase: CSSProperties = {
-  background: 'linear-gradient(135deg, #001250 0%, #002C93 60%, #0047C8 100%)',
-  border: 'none',
-  boxShadow: '0 4px 14px rgba(0,44,147,0.40), inset 0 1px 0 rgba(255,255,255,0.15)',
-}
-
-const variantClasses: Record<ButtonVariant, string> = {
-  primary: 'text-white hover:brightness-110 active:brightness-95 active:scale-[0.98]',
-  ghost: 'bg-transparent text-[#1B2A4A] border border-[#E2E8F0] hover:bg-[#F5F7FA] hover:border-[#1B2A4A]',
-  navy: 'text-white hover:brightness-110 active:brightness-95 active:scale-[0.98]',
-}
-
-const sizeStyles = {
-  sm: 'px-3 py-1.5 text-sm',
-  md: 'px-4 py-2 text-sm',
-  lg: 'px-6 py-3 text-base',
+const sizeStyles: Record<string, string> = {
+  sm: 'min-h-[36px] px-3 py-1.5 text-sm rounded-[9px] gap-1.5',
+  md: 'min-h-[44px] px-4 py-2 text-sm rounded-[11px] gap-2',
+  lg: 'min-h-[48px] px-6 py-3 text-[15px] rounded-[12px] gap-2',
 }
 
 export default function Button({
@@ -46,25 +69,18 @@ export default function Button({
   ...props
 }: ButtonProps) {
   const isDisabled = disabled || loading
-
-  const inlineStyle: CSSProperties =
-    variant === 'primary'
-      ? gradientBase
-      : variant === 'navy'
-        ? navyGradientBase
-        : {}
+  const { cls, style: varStyle } = variantStyles[variant]
 
   return (
     <button
       {...props}
       disabled={isDisabled}
-      style={{ ...inlineStyle, ...style }}
+      style={{ ...varStyle, ...style }}
       className={`
-        inline-flex items-center justify-center gap-2
-        font-semibold rounded-lg
-        transition-all duration-150
+        inline-flex items-center justify-center
+        transition-all duration-[130ms] ease-out
         cursor-pointer select-none
-        ${variantClasses[variant]}
+        ${cls}
         ${sizeStyles[size]}
         ${isDisabled ? 'opacity-40 cursor-not-allowed pointer-events-none' : ''}
         ${className}
@@ -72,24 +88,14 @@ export default function Button({
     >
       {loading && (
         <svg
-          className="animate-spin h-4 w-4"
+          className="animate-spin h-4 w-4 shrink-0"
           xmlns="http://www.w3.org/2000/svg"
           fill="none"
           viewBox="0 0 24 24"
+          aria-hidden
         >
-          <circle
-            className="opacity-25"
-            cx="12"
-            cy="12"
-            r="10"
-            stroke="currentColor"
-            strokeWidth="4"
-          />
-          <path
-            className="opacity-75"
-            fill="currentColor"
-            d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"
-          />
+          <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+          <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
         </svg>
       )}
       {children}

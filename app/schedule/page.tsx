@@ -269,96 +269,102 @@ export default function SchedulePage() {
 
   if (!mounted) return null
 
+  const inputStyle = {
+    border: '1px solid var(--border)',
+    color: 'var(--text-muted)',
+    fontFamily: 'DM Mono, monospace',
+    background: 'white',
+    borderRadius: '8px',
+    padding: '3px 8px',
+    fontSize: '12px',
+  }
+
   return (
-    <div className="w-full pt-6 pb-12 px-2">
+    <div className="w-full pt-6 pb-12">
+      {/* Delete confirm dialog */}
       {deleteTargetId && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/30">
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center"
+          style={{ background: 'rgba(10,20,50,0.45)', backdropFilter: 'blur(4px)' }}
+        >
           <div
-            className="w-full max-w-sm rounded-xl p-5"
-            style={{ background: 'white', border: '1px solid #E2E8F0' }}
+            className="w-full max-w-sm rounded-[18px] p-5 mx-4"
+            style={{ background: 'var(--surface-raised)', border: '1px solid var(--border)', boxShadow: 'var(--shadow-lg)' }}
           >
-            <p className="text-sm font-semibold mb-4" style={{ color: '#1A1A2E' }}>
-              本当に削除しますか？
+            <p className="text-sm font-semibold mb-4" style={{ color: 'var(--ink)' }}>
+              予定日の設定を解除しますか？
             </p>
             <div className="flex justify-end gap-2">
               <button
-                onClick={handleDeleteConfirmed}
-                className="px-4 py-2 rounded-lg text-sm font-semibold text-white"
-                style={{ background: '#DC2626' }}
-              >
-                はい
-              </button>
-              <button
                 onClick={() => setDeleteTargetId(null)}
-                className="px-4 py-2 rounded-lg text-sm font-medium"
-                style={{ background: '#F8FAFC', border: '1px solid #E2E8F0', color: '#64748B' }}
+                className="min-h-[38px] px-4 rounded-[9px] text-sm font-medium transition-colors hover:bg-gray-100"
+                style={{ background: 'rgba(20,44,92,0.06)', color: 'var(--ink)' }}
               >
                 いいえ
+              </button>
+              <button
+                onClick={handleDeleteConfirmed}
+                className="min-h-[38px] px-4 rounded-[9px] text-sm font-semibold text-white transition-all hover:brightness-110"
+                style={{ background: 'var(--danger)', boxShadow: '0 4px 12px rgba(229,62,79,0.28)' }}
+              >
+                はい、解除する
               </button>
             </div>
           </div>
         </div>
       )}
 
+      {/* Header */}
       <div className="mb-6">
-        <h1 className="text-xl font-bold" style={{ color: '#1A1A2E' }}>
-          投稿スケジュール
-        </h1>
-        <p className="text-sm mt-1" style={{ color: '#64748B' }}>
+        <p className="text-xs font-bold tracking-[0.11em] uppercase mb-1" style={{ color: 'var(--primary)' }}>
+          Scheduling Console
+        </p>
+        <h1 className="text-xl font-bold" style={{ color: 'var(--ink)' }}>投稿スケジュール</h1>
+        <p className="text-sm mt-1" style={{ color: 'var(--text-muted)' }}>
           記事の投稿予定日を設定・管理できます
         </p>
       </div>
 
+      {/* Schedule list table */}
       <div
-        className="rounded-xl mb-5 overflow-hidden"
-        style={{
-          background: 'white',
-          border: '1px solid #E2E8F0',
-          boxShadow: '0 1px 3px rgba(0,0,0,0.05)',
-        }}
+        className="rounded-[14px] mb-6 overflow-hidden"
+        style={{ background: 'var(--surface-raised)', border: '1px solid var(--border)', boxShadow: 'var(--shadow-sm)' }}
       >
         <div
           className="flex flex-wrap items-center justify-between gap-3 px-5 py-3"
-          style={{ borderBottom: '1px solid #F1F5F9' }}
+          style={{ borderBottom: '1px solid var(--border)' }}
         >
           <div className="flex items-center gap-2">
-            <List size={18} style={{ color: '#1B2A4A' }} />
-            <h2 className="text-sm font-bold" style={{ color: '#1A1A2E' }}>
-              予定一覧（これから投稿する予定・日時が未来の記事）
+            <List size={16} style={{ color: 'var(--primary)' }} />
+            <h2 className="text-sm font-bold" style={{ color: 'var(--ink)' }}>
+              予定一覧（未来の投稿）
             </h2>
           </div>
-          <label
-            className="flex items-center gap-2 text-xs cursor-pointer select-none"
-            style={{ color: '#64748B' }}
-          >
+          <label className="flex items-center gap-2 text-xs cursor-pointer select-none" style={{ color: 'var(--text-muted)' }}>
             <input
               type="checkbox"
               checked={scheduleListThisMonthOnly}
               onChange={e => setScheduleListThisMonthOnly(e.target.checked)}
-              className="rounded border-slate-300"
+              className="rounded"
             />
-            <span>
-              {year}年{MONTH_NAMES[month]}のみ表示
-            </span>
+            <span>{year}年{MONTH_NAMES[month]}のみ表示</span>
           </label>
         </div>
         {scheduleTableRows.length === 0 ? (
-          <p className="text-xs px-5 py-6 text-center" style={{ color: '#94A3B8' }}>
-            {scheduleListThisMonthOnly
-              ? 'この月に、今後投稿予定の記事はありません'
-              : '今後投稿予定の記事はありません（過去の予定は表示しません）'}
+          <p className="text-xs px-5 py-8 text-center" style={{ color: 'var(--text-faint)' }}>
+            {scheduleListThisMonthOnly ? 'この月に、今後投稿予定の記事はありません' : '今後投稿予定の記事はありません'}
           </p>
         ) : (
           <div className="overflow-x-auto">
             <table className="w-full text-left text-xs">
               <thead>
-                <tr style={{ background: '#F8FAFC', color: '#64748B' }}>
+                <tr style={{ background: 'rgba(18,103,242,0.03)', color: 'var(--text-muted)' }}>
                   <th className="px-4 py-2.5 font-semibold whitespace-nowrap">予定日</th>
                   <th className="px-4 py-2.5 font-semibold whitespace-nowrap">時刻</th>
                   <th className="px-4 py-2.5 font-semibold min-w-[12rem]">タイトル</th>
                   <th className="px-4 py-2.5 font-semibold min-w-[7rem]">KW</th>
                   <th className="px-4 py-2.5 font-semibold min-w-[10rem]">タグ</th>
-                  <th className="px-4 py-2.5 font-semibold whitespace-nowrap">スケジュール段階</th>
+                  <th className="px-4 py-2.5 font-semibold whitespace-nowrap">段階</th>
                   <th className="px-4 py-2.5 font-semibold whitespace-nowrap">操作</th>
                 </tr>
               </thead>
@@ -367,40 +373,27 @@ export default function SchedulePage() {
                   const stage = getScheduleStage(article)
                   const title = article.refinedTitle || article.title
                   return (
-                    <tr key={article.id} style={{ borderTop: '1px solid #F1F5F9', color: '#334155' }}>
-                      <td className="px-4 py-2.5 font-mono whitespace-nowrap align-top">
+                    <tr key={article.id} style={{ borderTop: '1px solid var(--border)', color: 'var(--ink)' }}>
+                      <td className="px-4 py-2.5 font-mono whitespace-nowrap align-top" style={{ color: 'var(--text-muted)' }}>
                         {article.scheduledDate}
                       </td>
-                      <td className="px-4 py-2.5 font-mono whitespace-nowrap align-top">
+                      <td className="px-4 py-2.5 font-mono whitespace-nowrap align-top" style={{ color: 'var(--text-muted)' }}>
                         {article.scheduledTime?.trim() ? article.scheduledTime : '—'}
                       </td>
                       <td className="px-4 py-2.5 align-top max-w-[20rem]">
-                        <div className="line-clamp-2" title={title}>
-                          {title}
-                        </div>
+                        <div className="line-clamp-2" title={title}>{title}</div>
                       </td>
-                      <td className="px-4 py-2.5 align-top text-[#64748B] max-w-[10rem] truncate" title={article.targetKeyword}>
+                      <td className="px-4 py-2.5 align-top max-w-[10rem] truncate" style={{ color: 'var(--text-muted)' }} title={article.targetKeyword}>
                         {article.targetKeyword || '—'}
                       </td>
-                      <td
-                        className="px-4 py-2.5 align-top max-w-[14rem]"
-                        title={
-                          article.wordpressTags?.length
-                            ? article.wordpressTags.join('、')
-                            : undefined
-                        }
-                      >
+                      <td className="px-4 py-2.5 align-top max-w-[14rem]" title={article.wordpressTags?.length ? article.wordpressTags.join('、') : undefined}>
                         {article.wordpressTags && article.wordpressTags.length > 0 ? (
                           <div className="flex flex-wrap gap-1">
                             {article.wordpressTags.map((tag, i) => (
                               <span
                                 key={`${article.id}-tag-${i}-${tag}`}
-                                className="text-[10px] px-1.5 py-0.5 rounded-md max-w-[8rem] truncate inline-block align-middle"
-                                style={{
-                                  color: '#334155',
-                                  background: '#F1F5F9',
-                                  border: '1px solid #CBD5E1',
-                                }}
+                                className="text-[10px] px-1.5 py-0.5 rounded-[5px] max-w-[8rem] truncate inline-block align-middle"
+                                style={{ color: 'var(--text-muted)', background: 'rgba(20,44,92,0.05)', border: '1px solid var(--border)' }}
                                 title={tag}
                               >
                                 {tag}
@@ -408,13 +401,13 @@ export default function SchedulePage() {
                             ))}
                           </div>
                         ) : (
-                          <span className="text-[#94A3B8]">—</span>
+                          <span style={{ color: 'var(--text-faint)' }}>—</span>
                         )}
                       </td>
                       <td className="px-4 py-2.5 align-top whitespace-nowrap">
                         <span
-                          className="inline-block px-2 py-0.5 rounded-full font-medium"
-                          style={{ color: stage.color, background: stage.bg, fontFamily: 'DM Mono' }}
+                          className="nas-badge"
+                          style={{ color: stage.color, background: stage.bg }}
                         >
                           {stage.label}
                         </span>
@@ -427,10 +420,10 @@ export default function SchedulePage() {
                             setYear(parseInt(article.scheduledDate!.slice(0, 4), 10))
                             setMonth(parseInt(article.scheduledDate!.slice(5, 7), 10) - 1)
                           }}
-                          className="text-xs font-semibold px-2 py-1 rounded-lg"
-                          style={{ color: '#1B2A4A', background: '#F0F4FF', border: '1px solid #C7D7FF' }}
+                          className="text-xs font-semibold px-2 py-1 rounded-[7px] transition-colors hover:bg-[rgba(18,103,242,0.10)]"
+                          style={{ color: 'var(--primary)', background: 'rgba(18,103,242,0.07)', border: '1px solid rgba(18,103,242,0.18)' }}
                         >
-                          カレンダーで表示
+                          カレンダーで確認
                         </button>
                       </td>
                     </tr>
@@ -442,25 +435,30 @@ export default function SchedulePage() {
         )}
       </div>
 
-      <div className="flex gap-5 items-start">
+      {/* 2-pane layout: Calendar + Selected day */}
+      <div className="flex flex-col lg:flex-row gap-5 items-start">
+        {/* Calendar pane */}
         <div
-          className="flex-shrink-0 rounded-2xl p-5"
-          style={{
-            width: '360px',
-            background: 'white',
-            border: '1px solid #E2E8F0',
-            boxShadow: '0 1px 3px rgba(0,0,0,0.05)',
-          }}
+          className="flex-shrink-0 rounded-[16px] p-5 w-full lg:w-[340px]"
+          style={{ background: 'var(--surface-raised)', border: '1px solid var(--border)', boxShadow: 'var(--shadow-sm)' }}
         >
           <div className="flex items-center justify-between mb-4">
-            <button onClick={prevMonth} className="p-1.5 rounded-lg hover:bg-gray-100 transition-all">
-              <ChevronLeft size={16} style={{ color: '#64748B' }} />
+            <button
+              onClick={prevMonth}
+              className="p-1.5 rounded-[8px] transition-colors hover:bg-[rgba(18,103,242,0.07)]"
+              style={{ color: 'var(--text-muted)' }}
+            >
+              <ChevronLeft size={16} />
             </button>
-            <span className="font-bold text-base" style={{ color: '#1A1A2E' }}>
+            <span className="font-bold text-sm" style={{ color: 'var(--ink)' }}>
               {year}年 {MONTH_NAMES[month]}
             </span>
-            <button onClick={nextMonth} className="p-1.5 rounded-lg hover:bg-gray-100 transition-all">
-              <ChevronRight size={16} style={{ color: '#64748B' }} />
+            <button
+              onClick={nextMonth}
+              className="p-1.5 rounded-[8px] transition-colors hover:bg-[rgba(18,103,242,0.07)]"
+              style={{ color: 'var(--text-muted)' }}
+            >
+              <ChevronRight size={16} />
             </button>
           </div>
 
@@ -468,15 +466,15 @@ export default function SchedulePage() {
             {WEEKDAYS.map((w, i) => (
               <div
                 key={w}
-                className="text-center text-xs py-1 font-medium"
-                style={{ color: i === 0 ? '#EF4444' : i === 6 ? '#3B82F6' : '#94A3B8' }}
+                className="text-center text-xs py-1 font-semibold"
+                style={{ color: i === 0 ? '#ef4444' : i === 6 ? 'var(--primary)' : 'var(--text-faint)' }}
               >
                 {w}
               </div>
             ))}
           </div>
 
-          <div className="grid grid-cols-7 gap-y-1">
+          <div className="grid grid-cols-7 gap-y-0.5">
             {calendarCells.map((day, idx) => {
               if (!day) return <div key={idx} />
 
@@ -487,17 +485,21 @@ export default function SchedulePage() {
               const hasPublished = dayArticles.some(a => a.status === 'published')
               const hasReady = dayArticles.some(a => a.status === 'ready')
               const hasDraft = dayArticles.some(a => a.status === 'draft')
-              const dotColor = hasPublished ? '#64748B' : hasReady ? '#16A34A' : hasDraft ? '#F59E0B' : null
+              const dotColor = hasPublished ? '#64748b' : hasReady ? '#0f9f6e' : hasDraft ? '#f59e0b' : null
               const dow = (firstDayOfWeek + day - 1) % 7
 
               return (
                 <button
                   key={idx}
                   onClick={() => setSelectedDate(dateStr)}
-                  className="flex flex-col items-center justify-center rounded-xl py-1.5 transition-all"
+                  className="flex flex-col items-center justify-center rounded-[10px] py-1.5 transition-all duration-100"
                   style={{
-                    background: isSelected ? '#1B2A4A' : isToday ? '#FDF0EE' : 'transparent',
-                    border: isToday && !isSelected ? '1.5px solid #C0392B' : '1.5px solid transparent',
+                    background: isSelected
+                      ? 'linear-gradient(135deg, #1267f2 0%, #18a9e6 100%)'
+                      : isToday
+                        ? 'rgba(18,103,242,0.08)'
+                        : 'transparent',
+                    border: isToday && !isSelected ? '1.5px solid rgba(18,103,242,0.30)' : '1.5px solid transparent',
                   }}
                 >
                   <span
@@ -506,12 +508,12 @@ export default function SchedulePage() {
                       color: isSelected
                         ? 'white'
                         : isToday
-                          ? '#C0392B'
+                          ? 'var(--primary)'
                           : dow === 0
-                            ? '#EF4444'
+                            ? '#ef4444'
                             : dow === 6
-                              ? '#3B82F6'
-                              : '#1A1A2E',
+                              ? 'var(--primary)'
+                              : 'var(--ink)',
                     }}
                   >
                     {day}
@@ -519,7 +521,7 @@ export default function SchedulePage() {
                   {dotColor && (
                     <div
                       className="w-1.5 h-1.5 rounded-full mt-0.5"
-                      style={{ background: isSelected ? 'rgba(255,255,255,0.7)' : dotColor }}
+                      style={{ background: isSelected ? 'rgba(255,255,255,0.75)' : dotColor }}
                     />
                   )}
                 </button>
@@ -527,34 +529,33 @@ export default function SchedulePage() {
             })}
           </div>
 
-          <div className="mt-4 pt-4 space-y-2" style={{ borderTop: '1px solid #F1F5F9' }}>
-            <p className="text-[10px] font-semibold uppercase tracking-wide" style={{ color: '#94A3B8' }}>
-              記事の編集状態（ドット）
+          <div className="mt-4 pt-4 space-y-2" style={{ borderTop: '1px solid var(--border)' }}>
+            <p className="text-[10px] font-semibold uppercase tracking-wider" style={{ color: 'var(--text-faint)' }}>
+              ドットの意味
             </p>
             <div className="flex flex-wrap items-center gap-x-4 gap-y-1">
               {[
-                { color: '#16A34A', label: '投稿準備完了' },
-                { color: '#F59E0B', label: '下書き' },
-                { color: '#64748B', label: '投稿済み' },
+                { color: '#0f9f6e', label: '投稿準備完了' },
+                { color: '#f59e0b', label: '下書き' },
+                { color: '#64748b', label: '投稿済み' },
               ].map(({ color, label }) => (
                 <div key={label} className="flex items-center gap-1.5">
                   <div className="w-2 h-2 rounded-full" style={{ background: color }} />
-                  <span className="text-xs" style={{ color: '#94A3B8' }}>
-                    {label}
-                  </span>
+                  <span className="text-xs" style={{ color: 'var(--text-faint)' }}>{label}</span>
                 </div>
               ))}
             </div>
           </div>
         </div>
 
-        <div className="flex-1 min-w-0">
+        {/* Selected day pane */}
+        <div className="flex-1 min-w-0 w-full">
           <div
-            className="rounded-xl px-5 py-3 mb-4 flex items-center gap-3"
-            style={{ background: '#F8FAFC', border: '1px solid #E2E8F0' }}
+            className="rounded-[12px] px-5 py-3 mb-4 flex items-center gap-3"
+            style={{ background: 'rgba(18,103,242,0.05)', border: '1px solid rgba(18,103,242,0.14)' }}
           >
-            <CalendarDays size={16} style={{ color: '#1B2A4A' }} />
-            <span className="font-semibold text-sm" style={{ color: '#1A1A2E' }}>
+            <CalendarDays size={16} style={{ color: 'var(--primary)' }} />
+            <span className="font-semibold text-sm" style={{ color: 'var(--ink)' }}>
               {new Date(selectedDate + 'T00:00:00').toLocaleDateString('ja-JP', {
                 year: 'numeric',
                 month: 'long',
@@ -562,29 +563,37 @@ export default function SchedulePage() {
                 weekday: 'short',
               })}
             </span>
-            <span className="text-xs ml-auto" style={{ color: '#94A3B8', fontFamily: 'DM Mono' }}>
-              {selectedArticles.length > 0 ? `${selectedArticles.length}件の記事` : '記事なし'}
+            <span className="text-xs ml-auto font-mono" style={{ color: 'var(--text-faint)' }}>
+              {selectedArticles.length > 0 ? `${selectedArticles.length}件` : '記事なし'}
             </span>
           </div>
 
           {selectedArticles.length === 0 && (
             <div
-              className="rounded-xl p-12 flex flex-col items-center gap-3 text-center"
-              style={{ background: 'white', border: '1px solid #E2E8F0', borderStyle: 'dashed' }}
+              className="rounded-[14px] p-12 flex flex-col items-center gap-3 text-center"
+              style={{ background: 'var(--surface-raised)', border: '1.5px dashed var(--border)' }}
             >
-              <FileText size={32} style={{ color: '#E2E8F0' }} />
+              <div
+                className="w-12 h-12 rounded-xl flex items-center justify-center"
+                style={{ background: 'rgba(18,103,242,0.06)', border: '1px solid rgba(18,103,242,0.12)' }}
+              >
+                <FileText size={22} style={{ color: 'var(--primary)' }} />
+              </div>
               <div>
-                <p className="text-sm font-medium" style={{ color: '#94A3B8' }}>
+                <p className="text-sm font-medium" style={{ color: 'var(--text-muted)' }}>
                   この日に予定された記事はありません
                 </p>
-                <p className="text-xs mt-1" style={{ color: '#CBD5E1' }}>
-                  「過去記事一覧」から記事を選び、投稿日を設定してください
+                <p className="text-xs mt-1" style={{ color: 'var(--text-faint)' }}>
+                  保存済み記事一覧から投稿予定日を設定してください
                 </p>
               </div>
               <button
                 onClick={() => router.push('/articles')}
-                className="mt-1 px-5 py-2 rounded-lg text-xs font-semibold text-white"
-                style={{ background: '#1B2A4A' }}
+                className="mt-1 min-h-[38px] px-5 rounded-[9px] text-xs font-semibold text-white transition-all hover:brightness-110"
+                style={{
+                  background: 'linear-gradient(135deg, #1267f2 0%, #18a9e6 100%)',
+                  boxShadow: '0 4px 12px rgba(18,103,242,0.28)',
+                }}
               >
                 記事一覧へ
               </button>
@@ -595,83 +604,52 @@ export default function SchedulePage() {
             {selectedArticles.map(article => {
               const st =
                 article.status === 'published'
-                  ? { label: '投稿済み', color: '#64748B', bg: '#F8FAFC' }
+                  ? { label: '投稿済み', color: '#64748b', bg: '#f8fafc' }
                   : article.status === 'ready'
-                    ? { label: '投稿準備完了', color: '#16A34A', bg: '#F0FDF4' }
-                    : { label: '下書き', color: '#F59E0B', bg: '#FFFBEB' }
+                    ? { label: '投稿準備完了', color: '#0f9f6e', bg: '#ecfdf5' }
+                    : { label: '下書き', color: '#c77916', bg: '#fffbeb' }
               const scheduleStage = getScheduleStage(article)
 
               return (
                 <div
                   key={article.id}
-                  className="rounded-xl p-5"
-                  style={{
-                    background: 'white',
-                    border: '1px solid #E2E8F0',
-                    boxShadow: '0 1px 3px rgba(0,0,0,0.04)',
-                  }}
+                  className="rounded-[14px] p-5"
+                  style={{ background: 'var(--surface-raised)', border: '1px solid var(--border)', boxShadow: 'var(--shadow-sm)' }}
                 >
                   <div className="flex flex-wrap items-center gap-2 mb-3">
-                    <span className="text-[10px] font-semibold uppercase tracking-wide" style={{ color: '#94A3B8' }}>
-                      スケジュール段階
-                    </span>
-                    <span
-                      className="text-xs px-2.5 py-1 rounded-full font-semibold"
-                      style={{
-                        color: scheduleStage.color,
-                        background: scheduleStage.bg,
-                        fontFamily: 'DM Mono',
-                      }}
-                    >
+                    <span className="nas-badge" style={{ color: scheduleStage.color, background: scheduleStage.bg }}>
+                      <span className="nas-badge-dot" style={{ background: scheduleStage.color }} />
                       {scheduleStage.label}
                     </span>
                   </div>
                   <div className="flex items-start gap-4">
                     {article.imageUrl ? (
-                      <img
-                        src={article.imageUrl}
-                        alt=""
-                        className="rounded-lg object-cover flex-shrink-0"
-                        style={{ width: 72, height: 50 }}
-                      />
+                      <img src={article.imageUrl} alt="" className="rounded-[8px] object-cover flex-shrink-0" style={{ width: 72, height: 50 }} />
                     ) : (
-                      <div
-                        className="rounded-lg flex-shrink-0 flex items-center justify-center"
-                        style={{ width: 72, height: 50, background: '#F1F5F9' }}
-                      >
-                        <FileText size={18} style={{ color: '#CBD5E1' }} />
+                      <div className="rounded-[8px] flex-shrink-0 flex items-center justify-center" style={{ width: 72, height: 50, background: 'rgba(18,103,242,0.06)' }}>
+                        <FileText size={18} style={{ color: 'var(--primary)' }} />
                       </div>
                     )}
 
                     <div className="flex-1 min-w-0">
                       <div className="flex items-center gap-2 mb-1.5 flex-wrap">
-                        <span className="text-[10px] font-medium" style={{ color: '#94A3B8' }}>
-                          記事状態
-                        </span>
-                        <span
-                          className="text-xs px-2 py-0.5 rounded-full font-medium"
-                          style={{ color: st.color, background: st.bg, fontFamily: 'DM Mono' }}
-                        >
+                        <span className="nas-badge" style={{ color: st.color, background: st.bg }}>
+                          <span className="nas-badge-dot" style={{ background: st.color }} />
                           {st.label}
                         </span>
                         {article.targetKeyword && (
                           <span
-                            className="text-xs px-2 py-0.5 rounded-full"
-                            style={{
-                              color: '#1B2A4A',
-                              background: '#F0F4FF',
-                              border: '1px solid #C7D7FF',
-                              fontFamily: 'DM Mono',
-                            }}
+                            className="text-[10px] px-2 py-0.5 rounded-full font-mono"
+                            style={{ color: 'var(--primary)', background: 'rgba(18,103,242,0.07)', border: '1px solid rgba(18,103,242,0.18)' }}
                           >
                             KW: {article.targetKeyword}
                           </span>
                         )}
                       </div>
-                      <h3 className="font-semibold text-sm leading-snug" style={{ color: '#1A1A2E' }}>
+                      <h3 className="font-semibold text-sm leading-snug" style={{ color: 'var(--ink)' }}>
                         {article.refinedTitle || article.title}
                       </h3>
-                      <p className="text-xs mt-1" style={{ color: '#94A3B8', fontFamily: 'DM Mono' }}>
+                      <p className="text-xs mt-1 font-mono" style={{ color: 'var(--text-faint)' }}>
                         {article.wordCount?.toLocaleString() ?? 0}文字
                       </p>
                     </div>
@@ -680,8 +658,8 @@ export default function SchedulePage() {
                       {article.status !== 'published' && (
                         <button
                           onClick={() => router.push(`/editor?articleId=${article.id}&step=5`)}
-                          className="flex items-center gap-1.5 px-4 py-2 rounded-lg text-xs font-semibold text-white"
-                          style={{ background: '#C0392B', boxShadow: '0 2px 6px rgba(192,57,43,0.2)' }}
+                          className="flex items-center gap-1.5 min-h-[34px] px-3 rounded-[8px] text-xs font-semibold text-white transition-all hover:brightness-110"
+                          style={{ background: 'var(--danger)', boxShadow: '0 2px 8px rgba(229,62,79,0.22)' }}
                         >
                           <Send size={12} />
                           投稿する
@@ -689,28 +667,26 @@ export default function SchedulePage() {
                       )}
                       <button
                         onClick={() => router.push(`/editor?articleId=${article.id}&step=1`)}
-                        className="flex items-center gap-1.5 px-4 py-2 rounded-lg text-xs font-medium"
-                        style={{ background: '#F8FAFC', border: '1px solid #E2E8F0', color: '#64748B' }}
+                        className="flex items-center gap-1.5 min-h-[34px] px-3 rounded-[8px] text-xs font-medium transition-colors hover:bg-[rgba(18,103,242,0.07)]"
+                        style={{ background: 'rgba(20,44,92,0.05)', border: '1px solid var(--border)', color: 'var(--text-muted)' }}
                       >
                         <Pencil size={12} />
                         編集する
                       </button>
                       <button
                         onClick={() => setDeleteTargetId(article.id)}
-                        className="flex items-center gap-1.5 px-4 py-2 rounded-lg text-xs font-medium"
-                        style={{ background: '#FEF2F2', border: '1px solid #FECACA', color: '#DC2626' }}
+                        className="flex items-center gap-1.5 min-h-[34px] px-3 rounded-[8px] text-xs font-medium transition-colors hover:bg-red-50"
+                        style={{ background: 'rgba(229,62,79,0.06)', border: '1px solid rgba(229,62,79,0.20)', color: 'var(--danger)' }}
                       >
                         <Trash2 size={12} />
-                        削除
+                        解除
                       </button>
                     </div>
                   </div>
 
-                  <div className="mt-4 pt-3 space-y-3" style={{ borderTop: '1px solid #F1F5F9' }}>
-                    <div className="flex items-center gap-2">
-                      <span className="text-xs" style={{ color: '#94A3B8' }}>
-                        投稿予定日を変更：
-                      </span>
+                  <div className="mt-4 pt-3 space-y-3" style={{ borderTop: '1px solid var(--border)' }}>
+                    <div className="flex flex-wrap items-center gap-2">
+                      <span className="text-xs" style={{ color: 'var(--text-faint)' }}>日付：</span>
                       <input
                         type="date"
                         value={article.scheduledDate ?? ''}
@@ -718,15 +694,9 @@ export default function SchedulePage() {
                           handleScheduleChange(article.id, e.target.value)
                           setSelectedDate(e.target.value)
                         }}
-                        className="text-xs px-2 py-1 rounded-md border"
-                        style={{
-                          border: '1px solid #E2E8F0',
-                          color: '#64748B',
-                          fontFamily: 'DM Mono',
-                          background: '#FAFBFC',
-                        }}
+                        style={inputStyle}
                       />
-                      <Clock size={14} style={{ color: '#94A3B8', marginLeft: 4 }} />
+                      <Clock size={13} style={{ color: 'var(--text-faint)', marginLeft: 2 }} />
                       <input
                         type="time"
                         step={900}
@@ -734,17 +704,9 @@ export default function SchedulePage() {
                         onChange={e => handleTimeChange(article.id, e.target.value)}
                         title="15分刻み（00・15・30・45分）"
                         aria-label="投稿予定時刻（15分刻み）"
-                        className="text-xs px-2 py-1 rounded-md border"
-                        style={{
-                          border: '1px solid #E2E8F0',
-                          color: '#64748B',
-                          fontFamily: 'DM Mono',
-                          background: '#FAFBFC',
-                        }}
+                        style={inputStyle}
                       />
-                      <span className="text-[10px] text-[#94A3B8] whitespace-nowrap">
-                        15分単位
-                      </span>
+                      <span className="text-[10px]" style={{ color: 'var(--text-faint)' }}>15分単位</span>
                     </div>
 
                     {(() => {
@@ -753,9 +715,7 @@ export default function SchedulePage() {
                       return (
                         <div className="flex flex-col gap-1.5">
                           <div className="flex items-center gap-2">
-                            <span className="text-xs" style={{ color: '#94A3B8' }}>
-                              スラッグ：
-                            </span>
+                            <span className="text-xs" style={{ color: 'var(--text-faint)' }}>スラッグ：</span>
                             <select
                               value={isCustom ? 'custom' : 'auto'}
                               onChange={e => {
@@ -766,13 +726,7 @@ export default function SchedulePage() {
                                   setCustomSlugIds(prev => new Set(prev).add(article.id))
                                 }
                               }}
-                              className="text-xs px-2 py-1 rounded-md border flex-1"
-                              style={{
-                                border: '1px solid #E2E8F0',
-                                color: '#64748B',
-                                fontFamily: 'DM Mono',
-                                background: '#FAFBFC',
-                              }}
+                              style={{ ...inputStyle, flex: 1 }}
                             >
                               <option value="auto">{autoSlug || '(スラッグ未設定)'}</option>
                               <option value="custom">自分で入力</option>
@@ -783,14 +737,8 @@ export default function SchedulePage() {
                               type="text"
                               value={article.slug ?? ''}
                               onChange={e => handleSlugChange(article.id, e.target.value)}
-                              className="text-xs px-2 py-1 rounded-md border w-full"
-                              style={{
-                                border: '1px solid #E2E8F0',
-                                color: '#64748B',
-                                fontFamily: 'DM Mono',
-                                background: '#FAFBFC',
-                              }}
-                              placeholder="例: ma-advisor-selection-tax-guide（半角英数字とハイフン）"
+                              style={{ ...inputStyle, width: '100%', padding: '5px 8px' }}
+                              placeholder="例: ma-advisor-selection-tax-guide"
                             />
                           )}
                         </div>
@@ -802,8 +750,11 @@ export default function SchedulePage() {
                         <button
                           onClick={() => handleScheduledPublish(article)}
                           disabled={publishingId === article.id}
-                          className="flex items-center gap-1.5 px-4 py-2 rounded-lg text-xs font-semibold text-white disabled:opacity-60"
-                          style={{ background: '#1B2A4A', boxShadow: '0 2px 6px rgba(27,42,74,0.2)' }}
+                          className="flex items-center gap-1.5 min-h-[34px] px-4 rounded-[8px] text-xs font-semibold text-white disabled:opacity-60 transition-all hover:brightness-110"
+                          style={{
+                            background: 'linear-gradient(135deg, #0a3fae 0%, #1267f2 100%)',
+                            boxShadow: '0 2px 8px rgba(10,63,174,0.28)',
+                          }}
                         >
                           {publishingId === article.id ? (
                             <>
@@ -817,19 +768,19 @@ export default function SchedulePage() {
                             </>
                           )}
                         </button>
-                        <span className="text-xs" style={{ color: '#94A3B8' }}>
-                          {article.scheduledTime} に自動公開されます
+                        <span className="text-xs" style={{ color: 'var(--text-faint)' }}>
+                          {article.scheduledTime} 自動公開
                         </span>
                       </div>
                     )}
 
                     {publishResult?.articleId === article.id && (
                       <div
-                        className="text-xs px-3 py-2 rounded-lg"
+                        className="text-xs px-3 py-2 rounded-[8px]"
                         style={{
-                          background: publishResult.success ? '#F0FDF4' : '#FEF2F2',
-                          color: publishResult.success ? '#16A34A' : '#DC2626',
-                          border: `1px solid ${publishResult.success ? '#BBF7D0' : '#FECACA'}`,
+                          background: publishResult.success ? '#ecfdf5' : '#fef2f2',
+                          color: publishResult.success ? '#0f9f6e' : 'var(--danger)',
+                          border: `1px solid ${publishResult.success ? '#6ee7b7' : '#fca5a5'}`,
                         }}
                       >
                         {publishResult.message}
@@ -846,39 +797,27 @@ export default function SchedulePage() {
             if (unscheduled.length === 0) return null
             return (
               <div className="mt-6">
-                <p
-                  className="text-xs font-semibold mb-3"
-                  style={{ color: '#94A3B8', letterSpacing: '0.08em', fontFamily: 'DM Mono' }}
-                >
+                <p className="text-xs font-semibold mb-3 font-mono" style={{ color: 'var(--text-faint)', letterSpacing: '0.08em' }}>
                   投稿日未設定の記事 ({unscheduled.length}件)
                 </p>
                 <div className="space-y-2">
                   {unscheduled.map(article => (
                     <div
                       key={article.id}
-                      className="rounded-xl px-4 py-3 flex items-center gap-3"
-                      style={{ background: 'white', border: '1px solid #E2E8F0' }}
+                      className="rounded-[12px] px-4 py-3 flex items-center gap-3"
+                      style={{ background: 'var(--surface-raised)', border: '1px solid var(--border)' }}
                     >
-                      <FileText size={14} style={{ color: '#CBD5E1', flexShrink: 0 }} />
-                      <span className="flex-1 text-sm truncate" style={{ color: '#64748B' }}>
+                      <FileText size={14} style={{ color: 'var(--primary)', flexShrink: 0 }} />
+                      <span className="flex-1 text-sm truncate" style={{ color: 'var(--text-muted)' }}>
                         {article.refinedTitle || article.title}
                       </span>
                       <div className="flex items-center gap-2 flex-shrink-0">
-                        <span className="text-xs" style={{ color: '#94A3B8' }}>
-                          この日に設定：
-                        </span>
                         <button
-                          onClick={() => {
-                            handleScheduleChange(article.id, selectedDate)
-                          }}
-                          className="text-xs px-3 py-1 rounded-lg font-medium"
-                          style={{ background: '#F0F4FF', color: '#1B2A4A', border: '1px solid #C7D7FF' }}
+                          onClick={() => { handleScheduleChange(article.id, selectedDate) }}
+                          className="text-xs min-h-[32px] px-3 rounded-[7px] font-medium transition-colors hover:bg-[rgba(18,103,242,0.12)]"
+                          style={{ color: 'var(--primary)', background: 'rgba(18,103,242,0.07)', border: '1px solid rgba(18,103,242,0.18)' }}
                         >
-                          {new Date(selectedDate + 'T00:00:00').toLocaleDateString('ja-JP', {
-                            month: 'short',
-                            day: 'numeric',
-                          })}{' '}
-                          に追加
+                          {new Date(selectedDate + 'T00:00:00').toLocaleDateString('ja-JP', { month: 'short', day: 'numeric' })} に追加
                         </button>
                       </div>
                     </div>

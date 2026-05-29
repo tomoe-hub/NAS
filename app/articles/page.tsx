@@ -136,55 +136,70 @@ export default function ArticlesPage() {
 
   if (!mounted) return null
 
+  const statusDot: Record<string, { dot: string; text: string; bg: string; border: string }> = {
+    draft:     { dot: '#f59e0b', text: '#92400e', bg: '#fffbeb', border: '#fcd34d' },
+    ready:     { dot: '#0f9f6e', text: '#065f46', bg: '#ecfdf5', border: '#6ee7b7' },
+    published: { dot: '#64748b', text: '#334155', bg: '#f8fafc', border: '#cbd5e1' },
+  }
+
   return (
-    <div className="w-full pt-6 pb-16 px-4 max-w-7xl mx-auto">
-      <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between mb-6">
+    <div className="w-full pt-6 pb-16 max-w-7xl mx-auto">
+
+      {/* ── Header ── */}
+      <div className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between mb-6">
         <div>
-          <h1 className="text-xl font-bold" style={{ color: '#1A1A2E' }}>
-            保存済み記事一覧
-          </h1>
-          <p className="text-sm mt-1 text-[#64748B] max-w-2xl">
-            作成済みの記事をカードで一覧できます。プレビュー・修正・投稿予定日の設定や削除が可能です。
+          <p className="text-xs font-bold tracking-[0.11em] uppercase mb-1" style={{ color: 'var(--primary)' }}>
+            Content Library
+          </p>
+          <h1 className="text-xl font-bold" style={{ color: 'var(--ink)' }}>保存済み記事一覧</h1>
+          <p className="text-sm mt-1" style={{ color: 'var(--text-muted)' }}>
+            作成済み記事の確認・修正・投稿予定日の設定ができます
           </p>
         </div>
         <div className="flex flex-wrap items-center gap-2">
           <button
             type="button"
             onClick={() => setFilterOpen(v => !v)}
-            className="inline-flex items-center gap-2 px-4 py-2.5 rounded-lg text-sm font-semibold border transition-all"
+            className="inline-flex items-center gap-2 min-h-[40px] px-4 rounded-[10px] text-sm font-semibold transition-all duration-150 hover:bg-white"
             style={{
-              borderColor: '#E2E8F0',
-              background: filterOpen ? '#F1F5F9' : 'white',
-              color: '#475569',
+              color: 'var(--text-muted)',
+              background: filterOpen ? 'white' : 'rgba(255,255,255,0.60)',
+              border: '1px solid var(--border)',
+              boxShadow: '0 1px 3px rgba(20,44,92,0.06)',
             }}
           >
-            <Filter size={16} />
+            <Filter size={15} />
             フィルター
-            {filterOpen ? <ChevronUp size={16} /> : <ChevronDown size={16} />}
+            {filterOpen ? <ChevronUp size={15} /> : <ChevronDown size={15} />}
           </button>
           <button
             type="button"
             onClick={() => router.push('/editor')}
-            className="inline-flex items-center gap-2 px-5 py-2.5 rounded-lg text-sm font-semibold text-white shadow-sm"
-            style={{ background: '#1B2A4A', boxShadow: '0 2px 8px rgba(27,42,74,0.2)' }}
+            className="inline-flex items-center gap-2 min-h-[40px] px-5 rounded-[10px] text-sm font-semibold text-white transition-all duration-150 hover:brightness-110 active:scale-[0.97]"
+            style={{
+              background: 'linear-gradient(135deg, #1267f2 0%, #18a9e6 100%)',
+              boxShadow: '0 4px 14px rgba(18,103,242,0.35), inset 0 1px 0 rgba(255,255,255,0.22)',
+            }}
           >
-            <Plus size={16} />
+            <Plus size={15} />
             新規作成
           </button>
         </div>
       </div>
 
+      {/* ── Filter Panel ── */}
       {filterOpen && (
         <div
-          className="rounded-xl p-4 mb-6 grid gap-4 sm:grid-cols-3"
-          style={{ background: 'white', border: '1px solid #E2E8F0' }}
+          className="rounded-[14px] p-5 mb-6 grid gap-4 sm:grid-cols-3"
+          style={{ background: 'var(--surface-raised)', border: '1px solid var(--border)', boxShadow: 'var(--shadow-sm)' }}
         >
           <div>
-            <label className="block text-xs font-semibold text-[#64748B] mb-1">ステータス</label>
+            <label className="block text-xs font-semibold mb-1.5" style={{ color: 'var(--text-muted)' }}>ステータス</label>
             <select
               value={statusFilter}
               onChange={e => setStatusFilter(e.target.value as StatusFilter)}
-              className="w-full px-3 py-2 rounded-lg border border-[#E2E8F0] text-sm text-[#1A1A2E] bg-white"
+              className="w-full px-3 py-2 rounded-[9px] text-sm"
+              style={{ border: '1px solid var(--border)', color: 'var(--ink)', background: 'white' }}
             >
               <option value="all">すべて</option>
               <option value="draft">下書き</option>
@@ -192,21 +207,23 @@ export default function ArticlesPage() {
             </select>
           </div>
           <div>
-            <label className="block text-xs font-semibold text-[#64748B] mb-1">タイトル・KW で検索</label>
+            <label className="block text-xs font-semibold mb-1.5" style={{ color: 'var(--text-muted)' }}>タイトル・KW で検索</label>
             <input
               type="search"
               value={searchQuery}
               onChange={e => setSearchQuery(e.target.value)}
               placeholder="キーワードを入力…"
-              className="w-full px-3 py-2 rounded-lg border border-[#E2E8F0] text-sm text-[#1A1A2E]"
+              className="w-full px-3 py-2 rounded-[9px] text-sm"
+              style={{ border: '1px solid var(--border)', color: 'var(--ink)', background: 'white' }}
             />
           </div>
           <div>
-            <label className="block text-xs font-semibold text-[#64748B] mb-1">並び替え</label>
+            <label className="block text-xs font-semibold mb-1.5" style={{ color: 'var(--text-muted)' }}>並び替え</label>
             <select
               value={sortKey}
               onChange={e => setSortKey(e.target.value as SortKey)}
-              className="w-full px-3 py-2 rounded-lg border border-[#E2E8F0] text-sm text-[#1A1A2E] bg-white"
+              className="w-full px-3 py-2 rounded-[9px] text-sm"
+              style={{ border: '1px solid var(--border)', color: 'var(--ink)', background: 'white' }}
             >
               <option value="dateDesc">作成日（新しい順）</option>
               <option value="dateAsc">作成日（古い順）</option>
@@ -216,88 +233,99 @@ export default function ArticlesPage() {
         </div>
       )}
 
+      {/* ── Empty ── */}
       {articles.length === 0 && (
         <div
-          className="rounded-xl p-16 flex flex-col items-center gap-4 text-center"
-          style={{ background: 'white', border: '1px solid #E2E8F0' }}
+          className="rounded-[18px] py-20 flex flex-col items-center gap-4 text-center"
+          style={{ background: 'var(--surface-raised)', border: '1px solid var(--border)', boxShadow: 'var(--shadow-sm)' }}
         >
-          <FileText size={40} style={{ color: '#CBD5E1' }} />
+          <div
+            className="w-16 h-16 rounded-2xl flex items-center justify-center"
+            style={{ background: 'rgba(18,103,242,0.07)', border: '1px solid rgba(18,103,242,0.12)' }}
+          >
+            <FileText size={28} style={{ color: 'var(--primary)' }} />
+          </div>
           <div>
-            <p className="font-semibold" style={{ color: '#64748B' }}>
-              保存済み記事はまだありません
-            </p>
-            <p className="text-sm mt-1" style={{ color: '#94A3B8' }}>
+            <p className="font-semibold text-base" style={{ color: 'var(--ink)' }}>保存済み記事はまだありません</p>
+            <p className="text-sm mt-1" style={{ color: 'var(--text-muted)' }}>
               記事を作成して下書き保存すると、ここに一覧表示されます
             </p>
           </div>
           <button
             type="button"
             onClick={() => router.push('/editor')}
-            className="mt-2 px-6 py-2.5 rounded-lg text-sm font-semibold text-white"
-            style={{ background: '#1B2A4A' }}
+            className="mt-2 min-h-[44px] px-6 rounded-[11px] text-sm font-semibold text-white transition-all hover:brightness-110"
+            style={{
+              background: 'linear-gradient(135deg, #1267f2 0%, #18a9e6 100%)',
+              boxShadow: '0 4px 14px rgba(18,103,242,0.35)',
+            }}
           >
             最初の記事を作成する
           </button>
         </div>
       )}
 
+      {/* ── Count ── */}
       {articles.length > 0 && (
-        <>
-          <p className="text-xs font-medium text-[#94A3B8] mb-4">
-            {filteredAndSorted.length} 件
-            {filteredAndSorted.length !== articles.length && `（全 ${articles.length} 件中）`}
-          </p>
-        </>
+        <p className="text-xs font-medium mb-4" style={{ color: 'var(--text-faint)' }}>
+          {filteredAndSorted.length} 件
+          {filteredAndSorted.length !== articles.length && `（全 ${articles.length} 件中）`}
+        </p>
       )}
 
       {articles.length > 0 && filteredAndSorted.length === 0 && (
         <div
-          className="rounded-xl p-12 text-center text-sm text-[#94A3B8]"
-          style={{ background: 'white', border: '1px solid #E2E8F0' }}
+          className="rounded-[14px] p-12 text-center text-sm"
+          style={{ background: 'var(--surface-raised)', border: '1px solid var(--border)', color: 'var(--text-muted)' }}
         >
           条件に一致する記事がありません。フィルターを調整してください。
         </div>
       )}
 
-      <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6">
+      {/* ── Card Grid ── */}
+      <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-5">
         {visibleArticles.map(article => {
           const st = STATUS_LABEL[article.status]
+          const sd = statusDot[article.status] ?? statusDot.draft
           const title = article.refinedTitle || article.title
           return (
             <article
               key={article.id}
-              className="group flex flex-col rounded-xl overflow-hidden transition-all duration-200 hover:shadow-lg"
+              className="group flex flex-col rounded-[16px] overflow-hidden transition-all duration-200 hover:-translate-y-0.5"
               style={{
-                background: 'white',
-                border: '1px solid #E2E8F0',
-                boxShadow: '0 1px 3px rgba(0,0,0,0.06)',
+                background: 'var(--surface-raised)',
+                border: '1px solid var(--border)',
+                boxShadow: 'var(--shadow-sm)',
+              }}
+              onMouseEnter={e => {
+                ;(e.currentTarget as HTMLElement).style.boxShadow = 'var(--shadow-md)'
+              }}
+              onMouseLeave={e => {
+                ;(e.currentTarget as HTMLElement).style.boxShadow = 'var(--shadow-sm)'
               }}
             >
-              <div className="relative aspect-[16/10] bg-[#F1F5F9] overflow-hidden">
+              {/* Image */}
+              <div className="relative aspect-[16/10] overflow-hidden" style={{ background: '#e9f0fa' }}>
                 {article.imageUrl ? (
-                  <img
-                    src={article.imageUrl}
-                    alt=""
-                    className="w-full h-full object-cover"
-                  />
+                  <img src={article.imageUrl} alt="" className="w-full h-full object-cover" />
                 ) : (
                   <div className="w-full h-full flex items-center justify-center">
-                    <FileText size={36} style={{ color: '#CBD5E1' }} />
+                    <FileText size={32} style={{ color: '#b0c0d8' }} />
                   </div>
                 )}
+                {/* Status badge */}
                 <span
-                  className="absolute top-2 left-2 text-[10px] font-bold tracking-wide px-2 py-1 rounded-md text-white"
-                  style={{
-                    background: 'rgba(27, 42, 74, 0.88)',
-                    fontFamily: 'system-ui, sans-serif',
-                  }}
+                  className="nas-badge absolute top-2.5 left-2.5"
+                  style={{ background: sd.bg, color: sd.text, border: `1px solid ${sd.border}` }}
                 >
-                  {st.label.toUpperCase()}
+                  <span className="nas-badge-dot" style={{ background: sd.dot }} />
+                  {st.label}
                 </span>
               </div>
 
               <div className="p-4 flex flex-col flex-1 min-h-0">
-                <div className="flex flex-wrap items-center gap-x-2 gap-y-1 text-[11px] text-[#94A3B8] mb-2">
+                {/* Meta */}
+                <div className="flex flex-wrap items-center gap-x-2 gap-y-1 text-[11px] mb-2" style={{ color: 'var(--text-faint)' }}>
                   <span className="inline-flex items-center gap-1">
                     <Calendar size={12} />
                     {formatCreatedDots(article.createdAt)}
@@ -309,25 +337,21 @@ export default function ArticlesPage() {
                   </span>
                 </div>
 
-                <h2
-                  className="text-sm font-bold leading-snug text-[#1A1A2E] line-clamp-2 mb-2 min-h-[2.5rem]"
-                  title={title}
-                >
+                {/* Title */}
+                <h2 className="text-sm font-bold leading-snug line-clamp-2 mb-2 min-h-[2.5rem]" style={{ color: 'var(--ink)' }} title={title}>
                   {title}
                 </h2>
 
-                <p className="text-xs text-[#64748B] leading-relaxed line-clamp-3 flex-1 mb-3">
+                {/* Excerpt */}
+                <p className="text-xs leading-relaxed line-clamp-3 flex-1 mb-3" style={{ color: 'var(--text-muted)' }}>
                   {buildArticleExcerpt(article)}
                 </p>
 
+                {/* KW */}
                 {article.targetKeyword ? (
                   <span
-                    className="text-[10px] px-2 py-0.5 rounded-full mb-3 w-fit"
-                    style={{
-                      color: '#1B2A4A',
-                      background: '#F0F4FF',
-                      border: '1px solid #C7D7FF',
-                    }}
+                    className="text-[10px] px-2.5 py-0.5 rounded-full mb-3 w-fit font-medium"
+                    style={{ color: 'var(--primary)', background: 'rgba(18,103,242,0.07)', border: '1px solid rgba(18,103,242,0.18)' }}
                   >
                     KW: {article.targetKeyword}
                   </span>
@@ -335,23 +359,31 @@ export default function ArticlesPage() {
                   <div className="mb-3" />
                 )}
 
-                <div className="flex items-center gap-2 mb-3 pt-2 border-t border-[#F1F5F9]">
-                  <Calendar size={14} className="text-[#94A3B8] flex-shrink-0" />
+                {/* Schedule date input */}
+                <div className="flex items-center gap-2 mb-3 pt-2" style={{ borderTop: '1px solid var(--border)' }}>
+                  <Calendar size={14} style={{ color: 'var(--text-faint)', flexShrink: 0 }} />
                   <input
                     type="date"
                     value={article.scheduledDate ?? ''}
                     onChange={e => handleScheduleChange(article.id, e.target.value)}
-                    className="flex-1 min-w-0 text-xs px-2 py-2 rounded-lg border border-[#E2E8F0] text-[#64748B]"
-                    style={{ fontFamily: 'DM Mono, monospace', background: '#FAFBFC' }}
+                    className="flex-1 min-w-0 text-xs px-2 py-1.5 rounded-[8px]"
+                    style={{
+                      fontFamily: 'DM Mono, monospace',
+                      border: '1px solid var(--border)',
+                      color: 'var(--text-muted)',
+                      background: 'white',
+                    }}
                     aria-label="投稿予定日"
                   />
                 </div>
 
-                <div className="flex items-center justify-between gap-2 mt-auto pt-1 border-t border-[#F1F5F9]">
+                {/* Actions */}
+                <div className="flex items-center justify-between gap-2 mt-auto pt-2" style={{ borderTop: '1px solid var(--border)' }}>
                   <button
                     type="button"
                     onClick={() => void handlePreview(article)}
-                    className="inline-flex items-center gap-1.5 text-xs font-semibold text-[#1B2A4A] hover:underline py-2"
+                    className="inline-flex items-center gap-1.5 text-xs font-semibold min-h-[36px] px-2 rounded-[8px] transition-colors hover:bg-[rgba(18,103,242,0.06)]"
+                    style={{ color: 'var(--primary)' }}
                   >
                     <Eye size={14} />
                     プレビュー
@@ -362,28 +394,32 @@ export default function ArticlesPage() {
                         href={article.wordpressUrl}
                         target="_blank"
                         rel="noopener noreferrer"
-                        className="p-2 rounded-lg hover:bg-[#F0F4FF] text-[#1B2A4A]"
+                        className="p-2 rounded-[8px] transition-colors hover:bg-[rgba(18,103,242,0.07)]"
+                        style={{ color: 'var(--text-muted)' }}
                         aria-label="WordPressで開く"
                       >
-                        <ExternalLink size={16} />
+                        <ExternalLink size={15} />
                       </a>
                     )}
                     <button
                       type="button"
                       onClick={() => handlePublish(article)}
-                      className="p-2 rounded-lg hover:bg-[#F0F4FF] text-[#1B2A4A]"
+                      className="p-2 rounded-[8px] transition-colors hover:bg-[rgba(18,103,242,0.07)]"
+                      style={{ color: 'var(--text-muted)' }}
                       aria-label="修正する"
                       title="修正する"
                     >
-                      <Pencil size={16} />
+                      <Pencil size={15} />
                     </button>
                     <button
                       type="button"
                       onClick={() => handleDelete(article.id)}
-                      className="p-2 rounded-lg hover:bg-[#FEF2F2] text-[#EF4444]"
-                      aria-label="削除"
+                      className="p-2 rounded-[8px] transition-colors hover:bg-red-50"
+                      style={{ color: 'var(--danger)' }}
+                      aria-label="この記事を削除する"
+                      title="削除"
                     >
-                      <Trash2 size={16} />
+                      <Trash2 size={15} />
                     </button>
                   </div>
                 </div>
@@ -393,13 +429,18 @@ export default function ArticlesPage() {
         })}
       </div>
 
+      {/* Load more */}
       {articles.length > 0 && hasMore && (
         <div className="mt-8 flex justify-center">
           <button
             type="button"
             onClick={() => setVisibleCount(c => c + ARTICLE_CARD_PAGE_SIZE)}
-            className="inline-flex items-center gap-2 px-8 py-3 rounded-xl text-sm font-semibold border-2 border-dashed transition-colors"
-            style={{ borderColor: '#CBD5E1', color: '#64748B', background: '#FAFBFC' }}
+            className="inline-flex items-center gap-2 min-h-[44px] px-8 rounded-[12px] text-sm font-semibold transition-all hover:bg-white"
+            style={{
+              color: 'var(--text-muted)',
+              border: '1.5px dashed var(--border)',
+              background: 'rgba(255,255,255,0.50)',
+            }}
           >
             さらに表示（あと {filteredAndSorted.length - visibleCount} 件）
           </button>

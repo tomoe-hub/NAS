@@ -615,10 +615,10 @@ function EditorContent() {
         <button
           type="button"
           onClick={handleNewArticle}
-          className="flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-semibold text-white transition-all duration-150 hover:brightness-110 active:scale-[0.98]"
+          className="flex items-center gap-2 px-4 py-2 rounded-[11px] text-sm font-semibold text-white transition-all duration-150 hover:brightness-110 active:scale-[0.97]"
           style={{
-            background: 'linear-gradient(135deg, #0055ff 0%, #00b4ff 100%)',
-            boxShadow: '0 4px 15px rgba(0,85,255,0.35), inset 0 1px 0 rgba(255,255,255,0.25)',
+            background: 'linear-gradient(135deg, #1267f2 0%, #18a9e6 100%)',
+            boxShadow: '0 4px 14px rgba(18,103,242,0.38), inset 0 1px 0 rgba(255,255,255,0.22)',
           }}
         >
           <Plus size={16} />
