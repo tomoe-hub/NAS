@@ -171,6 +171,8 @@ function PreviewContent() {
   const [storageContent, setStorageContent] = useState('')
   const [imageUrl, setImageUrl] = useState('')
   const [wordpressUrl, setWordpressUrl] = useState<string | null>(null)
+  const [editMode, setEditMode] = useState(false)
+  const [editContent, setEditContent] = useState('')
 
   const isPublishedPreview = searchParams.get('source') === 'published'
 
@@ -215,9 +217,34 @@ function PreviewContent() {
   const articleId = searchParams.get('articleId') || ''
 
   const formattedContent = useMemo(
-    () => formatContent(content, imageUrl),
-    [content, imageUrl]
+    () => formatContent(editMode ? editContent : content, imageUrl),
+    [content, editContent, editMode, imageUrl]
   )
+
+  const handleEnterEditMode = () => {
+    setEditContent(content)
+    setEditMode(true)
+  }
+
+  const handleSaveEdit = () => {
+    sessionStorage.setItem('preview_content', editContent)
+    setStorageContent(editContent)
+    setEditMode(false)
+  }
+
+  const handleCancelEdit = () => {
+    setEditMode(false)
+  }
+
+  // 架空数値パターンの検出（警告表示のみ、コンテンツ変更なし）
+  const suspiciousPatterns = [
+    /年商約?\d+億円/,
+    /年商約?\d+千万円/,
+    /従業員.*?約?\d+名/,
+    /成約.*?約?\d+億/,
+    /A社（[^）]*年商/,
+  ]
+  const hasSuspiciousContent = !editMode && suspiciousPatterns.some(p => p.test(content))
 
   const handlePublish = useCallback(() => {
     if (articleId) {
@@ -334,6 +361,67 @@ function PreviewContent() {
               >
                 ← 戻る
               </button>
+              {editMode ? (
+                <>
+                  <button
+                    type="button"
+                    onClick={handleCancelEdit}
+                    style={{
+                      background: 'transparent',
+                      border: '1px solid rgba(255,255,255,0.5)',
+                      color: 'white',
+                      padding: '10px 18px',
+                      borderRadius: 6,
+                      cursor: 'pointer',
+                      fontWeight: 600,
+                      fontSize: 14,
+                    }}
+                  >
+                    キャンセル
+                  </button>
+                  <button
+                    type="button"
+                    onClick={handleSaveEdit}
+                    style={{
+                      background: 'linear-gradient(135deg, #1267f2 0%, #18a9e6 100%)',
+                      border: 'none',
+                      color: 'white',
+                      padding: '10px 22px',
+                      borderRadius: 6,
+                      cursor: 'pointer',
+                      fontWeight: 700,
+                      fontSize: 14,
+                      boxShadow: '0 4px 12px rgba(18,103,242,0.40)',
+                    }}
+                  >
+                    保存して確定
+                  </button>
+                </>
+              ) : (
+                <button
+                  type="button"
+                  onClick={handleEnterEditMode}
+                  style={{
+                    background: 'rgba(255,255,255,0.12)',
+                    border: '1px solid rgba(255,255,255,0.40)',
+                    color: 'white',
+                    padding: '10px 18px',
+                    borderRadius: 6,
+                    cursor: 'pointer',
+                    fontWeight: 600,
+                    fontSize: 14,
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: 7,
+                  }}
+                >
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+                    <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7" />
+                    <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z" />
+                  </svg>
+                  本文を編集する
+                </button>
+              )}
               <button
                 type="button"
                 onClick={handlePublish}
@@ -355,9 +443,143 @@ function PreviewContent() {
         </div>
       </div>
 
+      {/* 架空数値警告バナー */}
+      {hasSuspiciousContent && (
+        <div
+          style={{
+            position: 'fixed',
+            top: 56,
+            left: 220,
+            right: 0,
+            zIndex: 999,
+            background: 'linear-gradient(135deg, #92400e, #b45309)',
+            color: 'white',
+            padding: '10px 24px',
+            display: 'flex',
+            alignItems: 'center',
+            gap: 10,
+            fontSize: 13,
+            fontWeight: 600,
+          }}
+        >
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+            <path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z" /><line x1="12" y1="9" x2="12" y2="13" /><line x1="12" y1="17" x2="12.01" y2="17" />
+          </svg>
+          架空の数値（年商・従業員数等）が含まれている可能性があります。「本文を編集する」から確認・修正してください。
+        </div>
+      )}
+
       {/* バナー分のスペーサー + 2カラム（左：プレビュー本文 / 右：プロセス表示） */}
-      <div style={{ paddingTop: 56, display: 'flex', gap: 24, alignItems: 'flex-start' }}>
+      <div style={{ paddingTop: hasSuspiciousContent ? 96 : 56, display: 'flex', gap: 24, alignItems: 'flex-start' }}>
         <div style={{ flex: 1, minWidth: 0 }}>
+
+      {/* ── 編集モード ── */}
+      {editMode && (
+        <div
+          style={{
+            display: 'flex',
+            gap: 0,
+            height: 'calc(100vh - 56px)',
+            overflow: 'hidden',
+          }}
+        >
+          {/* 左ペイン: 生テキスト編集エリア */}
+          <div
+            style={{
+              width: '50%',
+              flexShrink: 0,
+              display: 'flex',
+              flexDirection: 'column',
+              borderRight: '1px solid rgba(20,44,92,0.12)',
+              background: '#f8fbff',
+            }}
+          >
+            <div
+              style={{
+                padding: '12px 16px',
+                borderBottom: '1px solid rgba(20,44,92,0.10)',
+                background: 'rgba(18,103,242,0.04)',
+                display: 'flex',
+                alignItems: 'center',
+                gap: 8,
+              }}
+            >
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#1267f2" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7" />
+                <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z" />
+              </svg>
+              <span style={{ fontSize: 13, fontWeight: 700, color: '#1267f2' }}>本文を編集</span>
+              <span style={{ fontSize: 11, color: '#64788a', marginLeft: 4 }}>
+                「見出し名：説明文」の形式の行は、前後に空行を入れると見出しに変換されます
+              </span>
+            </div>
+            <textarea
+              value={editContent}
+              onChange={e => setEditContent(e.target.value)}
+              style={{
+                flex: 1,
+                padding: '16px 20px',
+                fontFamily: '"DM Mono", "Courier New", monospace',
+                fontSize: 13,
+                lineHeight: 1.75,
+                color: '#10213f',
+                background: 'transparent',
+                border: 'none',
+                outline: 'none',
+                resize: 'none',
+                overflowY: 'auto',
+              }}
+              spellCheck={false}
+            />
+          </div>
+
+          {/* 右ペイン: ライブプレビュー */}
+          <div
+            style={{
+              flex: 1,
+              display: 'flex',
+              flexDirection: 'column',
+              overflow: 'hidden',
+            }}
+          >
+            <div
+              style={{
+                padding: '12px 16px',
+                borderBottom: '1px solid rgba(20,44,92,0.10)',
+                background: 'rgba(15,159,110,0.04)',
+                display: 'flex',
+                alignItems: 'center',
+                gap: 8,
+              }}
+            >
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#0f9f6e" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z" /><circle cx="12" cy="12" r="3" />
+              </svg>
+              <span style={{ fontSize: 13, fontWeight: 700, color: '#0f9f6e' }}>ライブプレビュー</span>
+              <span style={{ fontSize: 11, color: '#64788a', marginLeft: 4 }}>
+                左の編集内容がリアルタイムで反映されます
+              </span>
+            </div>
+            <div
+              style={{
+                flex: 1,
+                overflowY: 'auto',
+                padding: '24px 32px',
+                fontFamily: '"Noto Sans JP", sans-serif',
+                fontSize: 16,
+                lineHeight: 1.9,
+                color: '#333',
+                background: '#fff',
+              }}
+              dangerouslySetInnerHTML={{ __html: formattedContent }}
+            />
+          </div>
+        </div>
+      )}
+
+      {/* ── 通常プレビューモード（NTSサイト再現） ── */}
+      {!editMode && (
+        <div>
       {/* ② ヘッダー（クライアントサイト完全再現） */}
       <header
         style={{
@@ -920,6 +1142,8 @@ function PreviewContent() {
           Copyright © 日本提携支援. All rights reserved.
         </p>
       </footer>
+        </div>
+      )}
         </div>
         {!isPublishedPreview && (
           <div style={{ flexShrink: 0, width: 140, position: 'sticky', top: 72, paddingTop: 8 }}>
