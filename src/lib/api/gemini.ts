@@ -306,7 +306,8 @@ export async function generateFirstDraftFromPrompt(
   userPrompt: string,
   targetKeyword?: string,
   dataContext?: string,
-  toneExamples?: string
+  toneExamples?: string,
+  avoidHeadings?: string
 ): Promise<FirstDraftResult> {
   const apiKey = process.env.GEMINI_API_KEY
   if (!apiKey) throw new Error('GEMINI_API_KEY が設定されていません')
@@ -347,6 +348,15 @@ ${toneExamples?.trim() ? `━━━━━━━━━━━━━━━━━━
 （過去記事の文章をそのままコピーしないこと。あくまで文体の参考にとどめること）
 
 ${toneExamples}
+
+` : ''}${avoidHeadings?.trim() ? `━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+【過去記事との差別化指示】
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+以下は過去に同テーマ・近いキーワードで書いた記事の見出し構成です。
+今回の記事ではこれらと異なる切り口・見出し・論点で書くこと。
+同じ見出しタイトルの使い回しは禁止。類似した言い換えも避けること。
+
+${avoidHeadings}
 
 ` : ''}━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 【執筆テーマ・指示】

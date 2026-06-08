@@ -21,6 +21,7 @@ interface EmbeddingEntry {
   title: string
   keyword: string
   excerpt: string
+  headings: string[]
   embeddedAt: string
 }
 
@@ -31,10 +32,21 @@ export interface SimilarArticle {
   title: string
   keyword: string
   excerpt: string
+  headings: string[]
   score: number
 }
 
 // ── 内部ユーティリティ ────────────────────────────────
+
+/** 本文から H2 見出し行（「1. テキスト」形式）を抽出する */
+function extractH2Headings(content: string): string[] {
+  return content
+    .split('\n')
+    .map(line => line.trim())
+    .filter(line => /^\d+[．.]\s/.test(line))
+    .map(line => line.replace(/^\d+[．.]\s*/, '').trim())
+    .filter(Boolean)
+}
 
 /** Gemini Embedding API でテキストをベクトル化 */
 export async function embedText(text: string): Promise<number[]> {
@@ -94,10 +106,11 @@ export async function findSimilarArticles(
 
   const scored = entries.map(([id, entry]) => ({
     id,
-    title:   entry.title,
-    keyword: entry.keyword,
-    excerpt: entry.excerpt,
-    score:   cosineSimilarity(queryVector, entry.vector),
+    title:    entry.title,
+    keyword:  entry.keyword,
+    excerpt:  entry.excerpt,
+    headings: entry.headings ?? [],
+    score:    cosineSimilarity(queryVector, entry.vector),
   }))
 
   scored.sort((a, b) => b.score - a.score)
@@ -137,6 +150,7 @@ export async function upsertArticleEmbedding(
       title:      article.refinedTitle || article.title,
       keyword:    article.targetKeyword || '',
       excerpt:    body.slice(0, 400),
+      headings:   extractH2Headings(body),
       embeddedAt: new Date().toISOString(),
     }
 

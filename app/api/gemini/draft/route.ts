@@ -36,8 +36,9 @@ export async function POST(request: NextRequest) {
 
     const { dataContext, binding } = await buildMaterialsDataContextForDraft(ids, allKeys)
 
-    // 過去記事から文体・トーン参考を検索（失敗しても生成を止めない）
+    // 過去記事から文体参考 + 差別化用見出しを検索（失敗しても生成を止めない）
     let toneExamples: string | undefined
+    let avoidHeadings: string | undefined
     try {
       const queryText = `${promptStr} ${targetKeywordStr ?? ''}`
       const queryVec = await embedText(queryText)
@@ -46,6 +47,13 @@ export async function POST(request: NextRequest) {
         toneExamples = similar
           .map((a, i) => `--- 参考記事${i + 1}：${a.title}${a.keyword ? `（KW: ${a.keyword}）` : ''} ---\n${a.excerpt}`)
           .join('\n\n')
+
+        const headingBlocks = similar
+          .filter(a => a.headings.length > 0)
+          .map((a, i) => `参考記事${i + 1}「${a.title}」の見出し:\n${a.headings.map(h => `- ${h}`).join('\n')}`)
+        if (headingBlocks.length > 0) {
+          avoidHeadings = headingBlocks.join('\n\n')
+        }
       }
     } catch (e) {
       console.warn('[Embedding] 類似記事の取得をスキップ（通常生成へフォールバック）:', e)
@@ -56,6 +64,7 @@ export async function POST(request: NextRequest) {
       targetKeywordStr,
       dataContext || undefined,
       toneExamples,
+      avoidHeadings,
     )
     return NextResponse.json({ title, content, materialBinding: binding })
   } catch (error) {

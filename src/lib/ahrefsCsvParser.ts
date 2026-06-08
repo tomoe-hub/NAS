@@ -23,6 +23,8 @@ export interface AhrefsKeywordRow {
   trafficChange: number | null
   branded: boolean
   serpFeatures: string
+  /** データセット取得日（M/D 表示用。マージ時に付与） */
+  datasetDate?: string
 }
 
 export interface AhrefsDataset {
