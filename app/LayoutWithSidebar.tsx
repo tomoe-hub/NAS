@@ -32,6 +32,7 @@ export default function LayoutWithSidebar({
 }) {
   const pathname = usePathname()
   const isLogin = pathname === '/login'
+  const isAhrefs = pathname === '/ahrefs' || pathname.startsWith('/ahrefs/')
 
   if (isLogin) {
     return (
@@ -139,7 +140,7 @@ export default function LayoutWithSidebar({
 
       {/* ─── Main ─── */}
       <div className="ml-[240px] flex-1 flex flex-col min-h-screen">
-        <main className="flex-1 flex items-start justify-center px-6 py-8 lg:px-8 lg:py-10">
+        <main className={`flex-1 flex items-start justify-center py-8 lg:py-10 ${isAhrefs ? 'px-3 lg:px-4' : 'px-6 lg:px-8'}`}>
           <MainContentWidth>{children}</MainContentWidth>
         </main>
       </div>

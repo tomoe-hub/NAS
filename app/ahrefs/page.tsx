@@ -605,34 +605,36 @@ ${row.keyword}
             />
           </div>
 
-          {/* Data table（table-fixed + 列幅% でビュー内に収め、横スクロール不要） */}
+          {/* Data table */}
           <div className="bg-white rounded-xl border border-[#E2E8F0] overflow-hidden">
-            <div className="w-full overflow-hidden">
-              <table className="w-full table-fixed text-xs border-collapse">
+            <div className="w-full overflow-x-auto">
+              <table className="w-full text-xs border-collapse" style={{ minWidth: isOrganicTab ? '1050px' : '900px' }}>
                 <colgroup>
                   {isOrganicTab ? (
                     <>
-                      <col style={{ width: '18%' }} />
-                      <col style={{ width: '7%' }} />
+                      <col style={{ width: '17%' }} />
+                      <col style={{ width: '4%' }} />
+                      <col style={{ width: '6%' }} />
+                      <col style={{ width: '4%' }} />
                       <col style={{ width: '5%' }} />
                       <col style={{ width: '7%' }} />
-                      <col style={{ width: '8%' }} />
-                      <col style={{ width: '8%' }} />
-                      <col style={{ width: '18%' }} />
-                      <col style={{ width: '6%' }} />
                       <col style={{ width: '7%' }} />
                       <col style={{ width: '16%' }} />
+                      <col style={{ width: '5%' }} />
+                      <col style={{ width: '6%' }} />
+                      <col style={{ width: '14%' }} />
                     </>
                   ) : (
                     <>
-                      <col style={{ width: '24%' }} />
-                      <col style={{ width: '8%' }} />
+                      <col style={{ width: '22%' }} />
+                      <col style={{ width: '4%' }} />
+                      <col style={{ width: '7%' }} />
                       <col style={{ width: '5%' }} />
+                      <col style={{ width: '7%' }} />
                       <col style={{ width: '8%' }} />
-                      <col style={{ width: '9%' }} />
-                      <col style={{ width: '9%' }} />
+                      <col style={{ width: '8%' }} />
                       <col style={{ width: '20%' }} />
-                      <col style={{ width: '17%' }} />
+                      <col style={{ width: '14%' }} />
                     </>
                   )}
                 </colgroup>
