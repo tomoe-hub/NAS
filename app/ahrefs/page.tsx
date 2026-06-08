@@ -19,7 +19,7 @@ import {
   normalizeKeywordForArticleMatch,
 } from '@/lib/keywordPublishIndex'
 import { ColumnHint } from '@/components/ui/ColumnHint'
-import { Upload, X, Search, TrendingUp, TrendingDown, BarChart3, ChevronDown } from 'lucide-react'
+import { Upload, X, Search, TrendingUp, TrendingDown, BarChart3, ChevronDown, RefreshCw, Wifi, WifiOff } from 'lucide-react'
 import { loadMemos, saveMemos, migrateLocalStorageToS3 } from '@/lib/keywordMemoStorage'
 
 type TabKey = 'opportunity' | 'organic' | 'trends'
@@ -58,6 +58,9 @@ export default function AhrefsPage() {
   const [error, setError] = useState<string | null>(null)
   const [savedArticles, setSavedArticles] = useState<Awaited<ReturnType<typeof getAllArticles>>>([])
   const [keywordMemos, setKeywordMemos] = useState<Record<string, string>>({})
+  const [apiFetching, setApiFetching] = useState(false)
+  const [apiStatus, setApiStatus] = useState<{ configured: boolean; domain: string | null; hasApiKey: boolean } | null>(null)
+  const [apiToast, setApiToast] = useState<{ msg: string; isError: boolean } | null>(null)
 
   const refreshSavedArticles = useCallback(async () => {
     setSavedArticles(await getAllArticles())
@@ -127,6 +130,39 @@ export default function AhrefsPage() {
   }, [])
 
   useEffect(() => { fetchData() }, [fetchData])
+
+  // API 設定状態を取得
+  useEffect(() => {
+    void (async () => {
+      try {
+        const res = await fetch('/api/ahrefs/fetch')
+        if (res.ok) setApiStatus(await res.json())
+      } catch { /* silent */ }
+    })()
+  }, [])
+
+  const handleApiFetch = useCallback(async () => {
+    if (apiFetching) return
+    setApiFetching(true)
+    setApiToast(null)
+    try {
+      const res = await fetch('/api/ahrefs/fetch', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({}),
+      })
+      const data = await res.json() as { rowCount?: number; fileName?: string; error?: string; usage?: { units_used_this_month: number; units_limit_per_month: number } | null }
+      if (!res.ok || data.error) throw new Error(data.error ?? '取得に失敗しました')
+      const usageMsg = data.usage ? `（今月 ${data.usage.units_used_this_month.toLocaleString()} / ${data.usage.units_limit_per_month.toLocaleString()} units使用）` : ''
+      setApiToast({ msg: `更新完了：${data.rowCount ?? 0} KW 取得${usageMsg}`, isError: false })
+      await fetchData()
+    } catch (e) {
+      setApiToast({ msg: `エラー: ${e instanceof Error ? e.message : '取得に失敗しました'}`, isError: true })
+    } finally {
+      setApiFetching(false)
+      setTimeout(() => setApiToast(null), 8000)
+    }
+  }, [apiFetching, fetchData])
 
   const handleUpload = useCallback(async (files: FileList | null) => {
     if (!files?.length) return
@@ -351,13 +387,43 @@ ${row.keyword}
         </div>
       )}
 
+      {/* API トースト */}
+      {apiToast && (
+        <div
+          className="fixed bottom-6 right-6 z-50 flex items-center gap-2 px-4 py-3 rounded-[12px] text-sm font-semibold text-white shadow-lg"
+          style={{
+            background: apiToast.isError
+              ? 'linear-gradient(135deg, #e53e4f, #b91c1c)'
+              : 'linear-gradient(135deg, #1267f2 0%, #18a9e6 100%)',
+            boxShadow: apiToast.isError ? '0 8px 24px rgba(229,62,79,0.35)' : '0 8px 24px rgba(18,103,242,0.35)',
+          }}
+        >
+          <RefreshCw size={14} />
+          {apiToast.msg}
+        </div>
+      )}
+
       {/* Header */}
-      <div className="flex items-center justify-between mb-6">
+      <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between mb-6">
         <div>
           <h1 className="text-xl font-bold" style={{ color: 'var(--ink)' }}>KW分析ダッシュボード</h1>
-          <p className="text-sm mt-1" style={{ color: 'var(--text-muted)' }}>Ahrefs CSVをインポートして、狙い目キーワードを分析</p>
+          <p className="text-sm mt-1 flex items-center gap-1.5" style={{ color: 'var(--text-muted)' }}>
+            Ahrefs CSVをインポートして、狙い目キーワードを分析
+            {apiStatus && (
+              <span
+                className="inline-flex items-center gap-1 text-xs font-medium px-2 py-0.5 rounded-full"
+                style={apiStatus.configured
+                  ? { color: '#065f46', background: '#ecfdf5', border: '1px solid #6ee7b7' }
+                  : { color: '#92400e', background: '#fffbeb', border: '1px solid #fcd34d' }}
+              >
+                {apiStatus.configured
+                  ? <><Wifi size={10} /> API接続済み ({apiStatus.domain})</>
+                  : <><WifiOff size={10} /> API未設定</>}
+              </span>
+            )}
+          </p>
         </div>
-        <div className="flex gap-2">
+        <div className="flex flex-wrap gap-2">
           <input
             ref={fileInputRef}
             type="file"
@@ -366,6 +432,24 @@ ${row.keyword}
             className="hidden"
             onChange={e => handleUpload(e.target.files)}
           />
+          {/* Ahrefs API 自動取得ボタン */}
+          {apiStatus?.configured && (
+            <button
+              onClick={handleApiFetch}
+              disabled={apiFetching}
+              title={`${apiStatus.domain ?? ''} のオーガニックキーワードを Ahrefs API から取得`}
+              className="inline-flex items-center gap-2 min-h-[40px] px-4 rounded-[10px] text-sm font-semibold transition-all hover:bg-white disabled:opacity-50 disabled:cursor-not-allowed"
+              style={{
+                color: 'var(--primary)',
+                background: 'rgba(18,103,242,0.07)',
+                border: '1px solid rgba(18,103,242,0.22)',
+                boxShadow: '0 1px 3px rgba(18,103,242,0.06)',
+              }}
+            >
+              <RefreshCw size={15} className={apiFetching ? 'animate-spin' : ''} />
+              {apiFetching ? '取得中...' : 'APIから今すぐ更新'}
+            </button>
+          )}
           <button
             onClick={() => fileInputRef.current?.click()}
             disabled={uploading}
