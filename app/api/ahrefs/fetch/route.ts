@@ -97,7 +97,8 @@ export async function POST(request: NextRequest) {
     })
   } catch (e) {
     const message = e instanceof Error ? e.message : 'Ahrefs APIからのデータ取得に失敗しました'
-    console.error('[Ahrefs Fetch] error:', e)
+    console.error('[Ahrefs Fetch] error:', message)
+    // エラー詳細をクライアントに返してデバッグしやすくする
     return NextResponse.json({ error: message }, { status: 500 })
   }
 }
