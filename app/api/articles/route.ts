@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { listS3Objects, getS3ObjectAsText, putS3Object, deleteS3Object } from '@/lib/s3Reference'
 import type { SavedArticle } from '@/lib/types'
+import { upsertArticleEmbedding } from '@/lib/articleEmbeddings'
 
 export const dynamic = 'force-dynamic'
 
@@ -44,6 +45,12 @@ export async function POST(request: NextRequest) {
     if (!ok) {
       return NextResponse.json({ error: 'S3への保存に失敗しました。AWS環境変数を確認してください。' }, { status: 500 })
     }
+
+    // 非同期でembedding生成（レスポンスをブロックしない）
+    upsertArticleEmbedding(article).catch(e =>
+      console.warn('[Embedding] 自動生成失敗（記事保存には影響なし）:', e)
+    )
+
     return NextResponse.json({ success: true, id: article.id })
   } catch (e) {
     console.error('Articles POST error:', e)

@@ -18,6 +18,7 @@ import {
   FileDigit,
   ChevronDown,
   ChevronUp,
+  Cpu,
 } from 'lucide-react'
 import {
   ARTICLE_CARD_PAGE_SIZE,
@@ -43,10 +44,35 @@ export default function ArticlesPage() {
   const [searchQuery, setSearchQuery] = useState('')
   const [sortKey, setSortKey] = useState<SortKey>('dateDesc')
   const [visibleCount, setVisibleCount] = useState(ARTICLE_CARD_PAGE_SIZE)
+  const [vectorizing, setVectorizing] = useState(false)
+  const [vectorToast, setVectorToast] = useState<string | null>(null)
 
   const reloadArticles = async () => {
     const all = await getAllArticles()
     setArticles(all.filter(article => article.status !== 'published'))
+  }
+
+  const handleVectorize = async () => {
+    if (vectorizing) return
+    setVectorizing(true)
+    setVectorToast(null)
+    try {
+      const res = await fetch('/api/articles/embeddings', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ mode: 'all', limit: 10 }),
+      })
+      const data = await res.json() as { done?: number; skipped?: number; failed?: number; remaining?: number; error?: string }
+      if (data.error) throw new Error(data.error)
+      const remaining = data.remaining ?? 0
+      const msg = `ベクトル化完了：新規 ${data.done ?? 0} 件${remaining > 0 ? `（残り約 ${remaining} 件 — もう一度押してください）` : '（全件処理済み）'}`
+      setVectorToast(msg)
+    } catch (e) {
+      setVectorToast(`エラー: ${e instanceof Error ? e.message : 'ベクトル化に失敗しました'}`)
+    } finally {
+      setVectorizing(false)
+      setTimeout(() => setVectorToast(null), 6000)
+    }
   }
 
   useEffect(() => {
@@ -136,6 +162,8 @@ export default function ArticlesPage() {
 
   if (!mounted) return null
 
+  const vectorToastIsError = vectorToast?.startsWith('エラー')
+
   const statusDot: Record<string, { dot: string; text: string; bg: string; border: string }> = {
     draft:     { dot: '#f59e0b', text: '#92400e', bg: '#fffbeb', border: '#fcd34d' },
     ready:     { dot: '#0f9f6e', text: '#065f46', bg: '#ecfdf5', border: '#6ee7b7' },
@@ -144,6 +172,24 @@ export default function ArticlesPage() {
 
   return (
     <div className="w-full pt-6 pb-16 max-w-7xl mx-auto">
+
+      {/* ── ベクトル化トースト ── */}
+      {vectorToast && (
+        <div
+          className="fixed bottom-6 right-6 z-50 flex items-center gap-2 px-4 py-3 rounded-[12px] text-sm font-semibold text-white shadow-lg transition-all duration-300"
+          style={{
+            background: vectorToastIsError
+              ? 'linear-gradient(135deg, #e53e4f, #b91c1c)'
+              : 'linear-gradient(135deg, #1267f2 0%, #18a9e6 100%)',
+            boxShadow: vectorToastIsError
+              ? '0 8px 24px rgba(229,62,79,0.35)'
+              : '0 8px 24px rgba(18,103,242,0.35)',
+          }}
+        >
+          <Cpu size={15} />
+          {vectorToast}
+        </div>
+      )}
 
       {/* ── Header ── */}
       <div className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between mb-6">
@@ -168,6 +214,22 @@ export default function ArticlesPage() {
             <Filter size={15} />
             フィルター
             {filterOpen ? <ChevronUp size={15} /> : <ChevronDown size={15} />}
+          </button>
+          <button
+            type="button"
+            onClick={handleVectorize}
+            disabled={vectorizing}
+            title="過去記事をGemini Embeddingでベクトル化します。10件ずつ処理されます。"
+            className="inline-flex items-center gap-2 min-h-[40px] px-4 rounded-[10px] text-sm font-semibold transition-all duration-150 hover:bg-white disabled:opacity-50 disabled:cursor-not-allowed"
+            style={{
+              color: 'var(--primary)',
+              background: 'rgba(18,103,242,0.06)',
+              border: '1px solid rgba(18,103,242,0.22)',
+              boxShadow: '0 1px 3px rgba(18,103,242,0.06)',
+            }}
+          >
+            <Cpu size={15} className={vectorizing ? 'animate-pulse' : ''} />
+            {vectorizing ? 'ベクトル化中...' : '過去記事をベクトル化'}
           </button>
           <button
             type="button"

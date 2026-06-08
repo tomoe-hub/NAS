@@ -5,6 +5,7 @@ import {
   getDraftMaterialsPrefix,
   resolveDraftS3Keys,
 } from '@/lib/draftMaterialsContext'
+import { embedText, findSimilarArticles } from '@/lib/articleEmbeddings'
 
 /** 429 時の待機＋再生成を含められるよう長めに（プランにより上限は異なります） */
 export const maxDuration = 120
@@ -35,10 +36,26 @@ export async function POST(request: NextRequest) {
 
     const { dataContext, binding } = await buildMaterialsDataContextForDraft(ids, allKeys)
 
+    // 過去記事から文体・トーン参考を検索（失敗しても生成を止めない）
+    let toneExamples: string | undefined
+    try {
+      const queryText = `${promptStr} ${targetKeywordStr ?? ''}`
+      const queryVec = await embedText(queryText)
+      const similar = await findSimilarArticles(queryVec, 3)
+      if (similar.length > 0) {
+        toneExamples = similar
+          .map((a, i) => `--- 参考記事${i + 1}：${a.title}${a.keyword ? `（KW: ${a.keyword}）` : ''} ---\n${a.excerpt}`)
+          .join('\n\n')
+      }
+    } catch (e) {
+      console.warn('[Embedding] 類似記事の取得をスキップ（通常生成へフォールバック）:', e)
+    }
+
     const { title, content } = await generateFirstDraftFromPrompt(
       promptStr,
       targetKeywordStr,
-      dataContext || undefined
+      dataContext || undefined,
+      toneExamples,
     )
     return NextResponse.json({ title, content, materialBinding: binding })
   } catch (error) {

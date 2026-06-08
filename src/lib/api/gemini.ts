@@ -305,7 +305,8 @@ function stripMarkdownDoubleAsterisk(s: string): string {
 export async function generateFirstDraftFromPrompt(
   userPrompt: string,
   targetKeyword?: string,
-  dataContext?: string
+  dataContext?: string,
+  toneExamples?: string
 ): Promise<FirstDraftResult> {
   const apiKey = process.env.GEMINI_API_KEY
   if (!apiKey) throw new Error('GEMINI_API_KEY が設定されていません')
@@ -338,7 +339,16 @@ export async function generateFirstDraftFromPrompt(
 
 ※「---」の下には記事本文のみを記述してください。タイトル・監修者ブロックのテキストは含めないでください。
 
+${toneExamples?.trim() ? `━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+【文体・トーン参考（過去の近似記事）】
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+以下の過去記事と同じトーン・語り口・文体・文末表現で執筆してください。
+テーマ・内容・見出し構成は今回の【執筆テーマ・指示】に従い、まったく新しい記事を書くこと。
+（過去記事の文章をそのままコピーしないこと。あくまで文体の参考にとどめること）
+
+${toneExamples}
+
+` : ''}━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 【執筆テーマ・指示】
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 ${userPrompt}
