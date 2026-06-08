@@ -19,13 +19,15 @@ const BASE_URL = 'https://api.ahrefs.com/v3'
 interface AhrefsOrganicRow {
   keyword: string
   best_position: number | null
-  best_position_diff: number | null
   best_position_url: string | null
   volume: number | null
   keyword_difficulty: number | null
   cpc: number | null             // USD cents
   sum_traffic: number | null
-  serp_features: string[] | null
+  is_informational: boolean | null
+  is_commercial: boolean | null
+  is_transactional: boolean | null
+  is_navigational: boolean | null
 }
 
 interface AhrefsOrganicResponse {
@@ -52,13 +54,21 @@ function recentDate(): string {
   return d.toISOString().slice(0, 10)
 }
 
+function buildIntents(row: AhrefsOrganicRow): string {
+  const parts: string[] = []
+  if (row.is_informational) parts.push('Informational')
+  if (row.is_commercial)    parts.push('Commercial')
+  if (row.is_transactional) parts.push('Transactional')
+  if (row.is_navigational)  parts.push('Navigational')
+  return parts.join(',')
+}
+
 function mapOrganicRow(row: AhrefsOrganicRow): AhrefsKeywordRow {
-  const serpStr = Array.isArray(row.serp_features) ? row.serp_features.join(',') : ''
   return {
     keyword:          row.keyword,
     volume:           row.volume ?? 0,
     kd:               row.keyword_difficulty ?? 0,
-    cpc:              row.cpc != null ? Math.round(row.cpc) / 100 : 0, // cents → dollars
+    cpc:              row.cpc != null ? Math.round(row.cpc) / 100 : 0,
     cps:              0,
     parentTopic:      '',
     svTrend:          [],
@@ -66,15 +76,15 @@ function mapOrganicRow(row: AhrefsOrganicRow): AhrefsKeywordRow {
     category:         '',
     trafficPotential: 0,
     globalVolume:     0,
-    intents:          '',
+    intents:          buildIntents(row),
     position:         row.best_position,
-    positionChange:   row.best_position_diff,
+    positionChange:   null,
     url:              row.best_position_url ?? '',
     currentTraffic:   row.sum_traffic,
     previousTraffic:  null,
     trafficChange:    null,
     branded:          false,
-    serpFeatures:     serpStr,
+    serpFeatures:     '',
   }
 }
 
@@ -98,17 +108,19 @@ export async function fetchOrganicKeywords(options: AhrefsApiOptions = {}): Prom
 
   if (!target) throw new Error('対象ドメインが指定されていません（AHREFS_TARGET_DOMAIN を設定してください）')
 
-  // select には response schema に存在する列のみ指定（where 専用の boolean 列は除外）
+  // エラーメッセージで確認済みの利用可能列のみ使用
   const SELECT_COLS = [
     'keyword',
     'best_position',
-    'best_position_diff',
     'best_position_url',
     'volume',
     'keyword_difficulty',
     'cpc',
     'sum_traffic',
-    'serp_features',
+    'is_informational',
+    'is_commercial',
+    'is_transactional',
+    'is_navigational',
   ].join(',')
 
   const params = new URLSearchParams({
