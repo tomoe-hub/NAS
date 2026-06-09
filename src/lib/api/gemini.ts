@@ -307,7 +307,8 @@ export async function generateFirstDraftFromPrompt(
   targetKeyword?: string,
   dataContext?: string,
   toneExamples?: string,
-  avoidHeadings?: string
+  avoidHeadings?: string,
+  competitorContext?: string
 ): Promise<FirstDraftResult> {
   const apiKey = process.env.GEMINI_API_KEY
   if (!apiKey) throw new Error('GEMINI_API_KEY が設定されていません')
@@ -357,6 +358,13 @@ ${toneExamples}
 同じ見出しタイトルの使い回しは禁止。類似した言い換えも避けること。
 
 ${avoidHeadings}
+
+` : ''}${competitorContext?.trim() ? `━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+【競合分析データ】
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+以下のAhrefsデータを参考に、競合より具体的・詳細・NTS固有の情報量で上回る記事を書くこと。
+
+${competitorContext}
 
 ` : ''}━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 【執筆テーマ・指示】

@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useEffect, useCallback } from 'react'
-import { Upload, FileText, Trash2, Download, Film, File } from 'lucide-react'
+import { Upload, FileText, Trash2, Download, Film, File, Database } from 'lucide-react'
 
 interface StoredFileMeta {
   id: string
@@ -56,6 +56,8 @@ export default function DataPage() {
   const [uploading, setUploading] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [dragOver, setDragOver] = useState(false)
+  const [embedStatus, setEmbedStatus] = useState<string | null>(null)
+  const [embedding, setEmbedding] = useState(false)
 
   const fetchFiles = useCallback(async () => {
     setLoading(true)
@@ -121,14 +123,73 @@ export default function DataPage() {
     [fetchFiles]
   )
 
+  const handleEmbedMaterials = useCallback(async (force = false) => {
+    if (embedding) return
+    setEmbedding(true)
+    setEmbedStatus(null)
+    try {
+      const res = await fetch('/api/materials/embed', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ force }),
+      })
+      const data = await res.json()
+      if (!res.ok) throw new Error(data.error || 'ベクトル化に失敗しました')
+      setEmbedStatus(data.message ?? '完了しました')
+    } catch (e) {
+      setEmbedStatus(`エラー: ${e instanceof Error ? e.message : 'ベクトル化に失敗しました'}`)
+    } finally {
+      setEmbedding(false)
+    }
+  }, [embedding])
+
   return (
     <div className="w-full py-8">
-      <h1 className="text-2xl font-bold text-[#1A1A2E] mb-1">
-        資料の永久保存（専用ページ）
-      </h1>
-      <p className="text-sm text-[#64748B] mb-8">
-        社内資料管理ページです。PDF、ドキュメント、スクリプト、動画などをアップロードし、アプリ上に保持します。
-      </p>
+      <div className="flex items-start justify-between mb-8">
+        <div>
+          <h1 className="text-2xl font-bold text-[#1A1A2E] mb-1">
+            資料の永久保存（専用ページ）
+          </h1>
+          <p className="text-sm text-[#64748B]">
+            社内資料管理ページです。PDF、ドキュメント、スクリプト、動画などをアップロードし、アプリ上に保持します。
+          </p>
+        </div>
+
+        {/* 資料ベクトル化パネル */}
+        <div className="flex-shrink-0 ml-6 rounded-xl border border-[#E2E8F0] bg-white p-4 w-72">
+          <div className="flex items-center gap-2 mb-2">
+            <Database size={16} className="text-[#002C93]" />
+            <span className="text-sm font-semibold text-[#1A1A2E]">資料RAGインデックス</span>
+          </div>
+          <p className="text-xs text-[#64748B] mb-3 leading-relaxed">
+            S3の資料（materials_for_articles/）をチャンク化・ベクトル化します。記事生成時にテーマに関連する箇所だけが自動選択されます。
+          </p>
+          <div className="flex gap-2">
+            <button
+              type="button"
+              onClick={() => handleEmbedMaterials(false)}
+              disabled={embedding}
+              className="flex-1 flex items-center justify-center gap-1.5 rounded-lg bg-[#002C93] px-3 py-2 text-xs font-semibold text-white hover:bg-[#001F6B] disabled:opacity-50 transition-colors"
+            >
+              {embedding ? '処理中...' : '資料をベクトル化'}
+            </button>
+            <button
+              type="button"
+              onClick={() => handleEmbedMaterials(true)}
+              disabled={embedding}
+              className="flex-shrink-0 rounded-lg border border-[#E2E8F0] px-3 py-2 text-xs font-medium text-[#64748B] hover:bg-[#F8FAFC] disabled:opacity-50 transition-colors"
+              title="全ファイルを強制再インデックス"
+            >
+              強制再実行
+            </button>
+          </div>
+          {embedStatus && (
+            <p className={`mt-2 text-xs ${embedStatus.startsWith('エラー') ? 'text-red-600' : 'text-[#16A34A]'}`}>
+              {embedStatus}
+            </p>
+          )}
+        </div>
+      </div>
 
       {/* アップロードエリア */}
       <div

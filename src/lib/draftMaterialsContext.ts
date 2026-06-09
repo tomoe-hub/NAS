@@ -119,6 +119,12 @@ export interface DraftMaterialBinding {
   contextLimit: number
   originalLen: number
   wasTruncated: boolean
+  /**
+   * RAG モード用: 選択された資料チャンク ID の配列。
+   * セットされている場合、推敲時はランダムウィンドウではなくこのIDリストから
+   * チャンクテキストを再取得して参照資料を再構築する。
+   */
+  ragChunkIds?: string[]
 }
 
 const MAX_BINDING_FILE_IDS = 80
@@ -140,14 +146,39 @@ export function parseDraftMaterialBinding(raw: unknown): DraftMaterialBinding | 
   const originalLen =
     typeof o.originalLen === 'number' && Number.isFinite(o.originalLen) && o.originalLen >= 0 ? o.originalLen : 0
   const wasTruncated = o.wasTruncated === true
-  if (fileIds.length === 0 && s3Keys.length === 0) return null
-  return { version: 1, fileIds, s3Keys, windowStart, contextLimit, originalLen, wasTruncated }
+  const ragChunkIds = Array.isArray(o.ragChunkIds)
+    ? o.ragChunkIds.filter((x): x is string => typeof x === 'string')
+    : undefined
+  // RAGモード（ragChunkIdsあり）はs3Keys/fileIdsが空でも有効
+  if (fileIds.length === 0 && s3Keys.length === 0 && (!ragChunkIds || ragChunkIds.length === 0)) return null
+  return { version: 1, fileIds, s3Keys, windowStart, contextLimit, originalLen, wasTruncated, ragChunkIds }
 }
 
 /**
- * 一次執筆時と同一ウィンドウ（＋必要なら同一システム注記）の参照テキストを再構築する。
+ * 一次執筆時と同一の参照テキストを再構築する。
+ * - ragChunkIds が設定されている場合: RAG で選択したチャンクを再取得
+ * - それ以外: 従来のランダムウィンドウ方式
  */
 export async function materializeBoundMaterialsForPrompt(binding: DraftMaterialBinding): Promise<string | null> {
+  // RAG モード: チャンク ID から再取得
+  if (binding.ragChunkIds && binding.ragChunkIds.length > 0) {
+    try {
+      const { chunksByIds } = await import('@/lib/materialEmbeddings')
+      const ragText = await chunksByIds(binding.ragChunkIds)
+      if (ragText.trim()) {
+        // アップロードファイルがある場合は先頭に追加
+        if (binding.fileIds.length > 0) {
+          const uploadText = await buildFullMaterialsString(binding.fileIds, [])
+          return uploadText.trim() ? `${uploadText}\n\n${ragText}` : ragText
+        }
+        return ragText
+      }
+    } catch (e) {
+      console.warn('[draftMaterials] RAG チャンク再取得失敗、フォールバック:', e)
+    }
+  }
+
+  // 従来方式
   const full = await buildFullMaterialsString(binding.fileIds, binding.s3Keys)
   if (!full.trim()) return null
 
