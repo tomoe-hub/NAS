@@ -10,6 +10,7 @@ import {
   BookMarked,
   Hash,
   BarChart3,
+  Database,
   ShieldAlert,
 } from 'lucide-react'
 import MainContentWidth from './MainContentWidth'
@@ -22,6 +23,7 @@ const navItems = [
   { href: '/prompts',   label: 'プロンプト',           icon: BookMarked },
   { href: '/keywords',  label: 'キーワード',           icon: Hash },
   { href: '/ahrefs',    label: 'KW分析',               icon: BarChart3 },
+  { href: '/materials', label: '資料更新',              icon: Database },
   { href: '/notice',    label: '注意書き',              icon: ShieldAlert },
 ]
 
