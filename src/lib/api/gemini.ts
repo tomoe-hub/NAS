@@ -197,8 +197,9 @@ function parseGeneratedArticleText(text: string): ParsedArticleResult {
     const candidateTitle = m[1]!.trim()
     if (!candidateTitle || /（記事タイトル）/.test(candidateTitle)) continue
 
+    // --- 区切りをタイトル行から最大20行先まで探す（空白行が多くても対応）
     let sepIdx = -1
-    for (let j = i + 1; j <= Math.min(i + 6, lines.length - 1); j++) {
+    for (let j = i + 1; j <= Math.min(i + 20, lines.length - 1); j++) {
       if (/^\s*-{3,}\s*$/.test(lines[j]!)) {
         sepIdx = j
         break
@@ -215,12 +216,25 @@ function parseGeneratedArticleText(text: string): ParsedArticleResult {
 
   if (best) return best
 
-  const fallbackTitleMatch = normalized.match(/タイトル[:：](.+)/)
-  const fallbackSep = normalized.indexOf('---')
-  const fallbackTitle = fallbackTitleMatch?.[1]?.trim() || '（タイトルなし）'
+  // フォールバック: タイトル行を正規表現で抽出、プレースホルダーは除外
+  const fallbackTitleMatch = normalized.match(/タイトル[:：]\s*([^（\n][^\n]+)/)
+  const rawFallbackTitle = fallbackTitleMatch?.[1]?.trim() ?? ''
+  const isPlaceholder = !rawFallbackTitle || /（記事タイトル）/.test(rawFallbackTitle)
+  const fallbackTitle = isPlaceholder ? '' : rawFallbackTitle
+
+  // 最初の --- を区切りとして本文を抽出（タイトル行より後のものを優先）
+  const titleLineEnd = fallbackTitleMatch
+    ? normalized.indexOf('\n', normalized.indexOf(fallbackTitleMatch[0]))
+    : 0
+  const searchFrom = titleLineEnd > 0 ? titleLineEnd : 0
+  const fallbackSepInBody = normalized.indexOf('---', searchFrom)
+  const fallbackSepAny = normalized.indexOf('---')
+  const fallbackSep = fallbackSepInBody >= 0 ? fallbackSepInBody : fallbackSepAny
+
   const fallbackContent = fallbackSep >= 0
     ? normalized.slice(fallbackSep + 3).trim().replace(/^-\s*/, '')
     : normalized.replace(/タイトル[:：].+/, '').trim()
+
   return { title: fallbackTitle, content: fallbackContent }
 }
 

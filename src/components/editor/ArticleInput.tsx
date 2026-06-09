@@ -156,7 +156,7 @@ export default function ArticleInput({
 
       const title = typeof data.title === 'string' ? data.title.trim() : ''
       const content = typeof data.content === 'string' ? data.content : ''
-      if (title) onTitleChange(title)
+      if (title && title !== '（タイトルなし）') onTitleChange(title)
       if (content) onContentChange(content)
       setGenerating(false)
     } catch (e) {
