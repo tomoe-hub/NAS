@@ -4,6 +4,7 @@ import {
   InvokeModelCommand,
 } from '@aws-sdk/client-bedrock-runtime'
 import { generateImagePromptFromArticle } from '@/lib/api/gemini'
+import { saveImage } from '@/lib/imageLibrary'
 
 /** Stable Diffusion 3.5 は us-west-2 でのみ利用可能 */
 const BEDROCK_IMAGE_REGION = 'us-west-2'
@@ -171,6 +172,20 @@ export async function POST(request: NextRequest) {
     const base64Image = responseBody.images?.[0]
     if (!base64Image) {
       throw new Error('画像データが返ってきませんでした')
+    }
+
+    // 生成成功した画像はサーバー側で必ず画像ライブラリ（S3）に保存する
+    try {
+      await saveImage({
+        imageBase64: base64Image,
+        mimeType: 'image/jpeg',
+        title: title.trim(),
+        targetKeyword: typeof targetKeyword === 'string' ? targetKeyword : undefined,
+        prompt,
+        source: 'generated',
+      })
+    } catch (e) {
+      console.warn('[ImageLibrary] 自動保存に失敗（画像生成自体は成功）:', (e as Error)?.message)
     }
 
     return NextResponse.json({

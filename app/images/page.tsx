@@ -1,7 +1,6 @@
 'use client'
 
 import { useState, useEffect, useRef, useCallback } from 'react'
-import Image from 'next/image'
 import {
   Images,
   Upload,
@@ -14,6 +13,7 @@ import {
   Loader2,
   CheckCircle2,
   AlertCircle,
+  ImagePlus,
 } from 'lucide-react'
 import type { ImageEntry } from '@/lib/imageLibrary'
 
@@ -21,10 +21,12 @@ export default function ImagesPage() {
   const [images, setImages] = useState<ImageEntry[]>([])
   const [loading, setLoading] = useState(true)
   const [uploading, setUploading] = useState(false)
+  const [dragOver, setDragOver] = useState(false)
   const [deletingId, setDeletingId] = useState<string | null>(null)
   const [toast, setToast] = useState<{ type: 'success' | 'error'; message: string } | null>(null)
   const [lightbox, setLightbox] = useState<ImageEntry | null>(null)
   const fileInputRef = useRef<HTMLInputElement>(null)
+  const dragCounter = useRef(0)
 
   const showToast = (type: 'success' | 'error', message: string) => {
     setToast({ type, message })
@@ -48,44 +50,65 @@ export default function ImagesPage() {
     void fetchImages()
   }, [fetchImages])
 
-  const handleUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0]
-    if (!file) return
-    if (!file.type.startsWith('image/')) {
-      showToast('error', '画像ファイルを選択してください')
-      return
-    }
-    setUploading(true)
-    try {
-      const base64 = await new Promise<string>((resolve, reject) => {
-        const reader = new FileReader()
-        reader.onload = () => {
-          const result = reader.result as string
-          resolve(result.split(',')[1] ?? '')
+  const uploadFiles = useCallback(
+    async (files: FileList | File[]) => {
+      const imageFiles = Array.from(files).filter((f) => f.type.startsWith('image/'))
+      if (imageFiles.length === 0) {
+        showToast('error', '画像ファイルを選択してください')
+        return
+      }
+      setUploading(true)
+      let okCount = 0
+      try {
+        for (const file of imageFiles) {
+          const base64 = await new Promise<string>((resolve, reject) => {
+            const reader = new FileReader()
+            reader.onload = () => {
+              const result = reader.result as string
+              resolve(result.split(',')[1] ?? '')
+            }
+            reader.onerror = reject
+            reader.readAsDataURL(file)
+          })
+          const res = await fetch('/api/image-library', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              imageBase64: base64,
+              mimeType: file.type,
+              title: file.name.replace(/\.[^.]+$/, ''),
+              source: 'uploaded',
+            }),
+          })
+          if (res.ok) okCount++
         }
-        reader.onerror = reject
-        reader.readAsDataURL(file)
-      })
-      const res = await fetch('/api/image-library', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          imageBase64: base64,
-          mimeType: file.type,
-          title: file.name.replace(/\.[^.]+$/, ''),
-          source: 'uploaded',
-        }),
-      })
-      if (!res.ok) throw new Error('保存失敗')
-      showToast('success', '画像をアップロードしました')
-      await fetchImages()
-    } catch {
-      showToast('error', 'アップロードに失敗しました')
-    } finally {
-      setUploading(false)
-      if (fileInputRef.current) fileInputRef.current.value = ''
-    }
-  }
+        if (okCount > 0) {
+          showToast('success', `${okCount}件の画像をアップロードしました`)
+          await fetchImages()
+        } else {
+          showToast('error', 'アップロードに失敗しました')
+        }
+      } catch {
+        showToast('error', 'アップロードに失敗しました')
+      } finally {
+        setUploading(false)
+        if (fileInputRef.current) fileInputRef.current.value = ''
+      }
+    },
+    [fetchImages]
+  )
+
+  const handleDrop = useCallback(
+    (e: React.DragEvent) => {
+      e.preventDefault()
+      dragCounter.current = 0
+      setDragOver(false)
+      if (e.dataTransfer.files.length > 0) {
+        void uploadFiles(e.dataTransfer.files)
+      }
+    },
+    [uploadFiles]
+  )
 
   const handleDelete = async (id: string) => {
     if (!confirm('この画像を削除しますか？')) return
@@ -105,14 +128,8 @@ export default function ImagesPage() {
   const handleDownload = (entry: ImageEntry) => {
     const a = document.createElement('a')
     a.href = entry.url
-    a.download = `${entry.title ?? 'image'}.jpg`
-    a.target = '_blank'
+    a.download = `${entry.title || 'image'}.jpg`
     a.click()
-  }
-
-  const formatDate = (iso: string) => {
-    const d = new Date(iso)
-    return `${d.getFullYear()}/${String(d.getMonth() + 1).padStart(2, '0')}/${String(d.getDate()).padStart(2, '0')}`
   }
 
   return (
@@ -128,11 +145,7 @@ export default function ImagesPage() {
             backdropFilter: 'blur(12px)',
           }}
         >
-          {toast.type === 'success' ? (
-            <CheckCircle2 size={16} />
-          ) : (
-            <AlertCircle size={16} />
-          )}
+          {toast.type === 'success' ? <CheckCircle2 size={16} /> : <AlertCircle size={16} />}
           {toast.message}
         </div>
       )}
@@ -151,18 +164,9 @@ export default function ImagesPage() {
             {/* eslint-disable-next-line @next/next/no-img-element */}
             <img
               src={lightbox.url}
-              alt={lightbox.title}
+              alt=""
               className="block max-w-[88vw] max-h-[82vh] object-contain"
             />
-            <div
-              className="absolute bottom-0 left-0 right-0 px-5 py-4"
-              style={{ background: 'linear-gradient(to top, rgba(0,0,0,0.8), transparent)' }}
-            >
-              <div className="text-white font-semibold text-[15px] truncate">{lightbox.title}</div>
-              {lightbox.targetKeyword && (
-                <div className="text-white/60 text-[12px] mt-0.5">{lightbox.targetKeyword}</div>
-              )}
-            </div>
             <button
               onClick={() => setLightbox(null)}
               className="absolute top-3 right-3 w-9 h-9 rounded-full flex items-center justify-center transition-colors"
@@ -175,7 +179,7 @@ export default function ImagesPage() {
       )}
 
       {/* ─── Header ─── */}
-      <div className="flex items-center justify-between mb-8">
+      <div className="flex items-center justify-between mb-6">
         <div className="flex items-center gap-3">
           <div
             className="w-10 h-10 rounded-[12px] flex items-center justify-center"
@@ -194,43 +198,87 @@ export default function ImagesPage() {
           </div>
         </div>
 
-        <div className="flex items-center gap-2">
-          <button
-            onClick={() => void fetchImages()}
-            disabled={loading}
-            className="flex items-center gap-2 px-4 py-2.5 rounded-[11px] text-[13px] font-semibold transition-all"
-            style={{
-              background: 'rgba(255,255,255,0.9)',
-              border: '1px solid rgba(15,23,42,0.12)',
-              color: '#0f172a',
-              boxShadow: '0 2px 8px rgba(0,0,0,0.06)',
-            }}
-          >
-            <RefreshCw size={14} className={loading ? 'animate-spin' : ''} />
-            更新
-          </button>
+        <button
+          onClick={() => void fetchImages()}
+          disabled={loading}
+          className="flex items-center gap-2 px-4 py-2.5 rounded-[11px] text-[13px] font-semibold transition-all"
+          style={{
+            background: 'rgba(255,255,255,0.9)',
+            border: '1px solid rgba(15,23,42,0.12)',
+            color: '#0f172a',
+            boxShadow: '0 2px 8px rgba(0,0,0,0.06)',
+          }}
+        >
+          <RefreshCw size={14} className={loading ? 'animate-spin' : ''} />
+          更新
+        </button>
+      </div>
 
-          <button
-            onClick={() => fileInputRef.current?.click()}
-            disabled={uploading}
-            className="flex items-center gap-2 px-5 py-2.5 rounded-[11px] text-[13px] font-semibold transition-all"
-            style={{
-              background: 'linear-gradient(135deg, #6366f1, #8b5cf6)',
-              color: '#fff',
-              boxShadow: '0 4px 14px rgba(99,102,241,0.35)',
-            }}
-          >
-            {uploading ? <Loader2 size={14} className="animate-spin" /> : <Upload size={14} />}
-            画像をアップロード
-          </button>
-          <input
-            ref={fileInputRef}
-            type="file"
-            accept="image/*"
-            className="hidden"
-            onChange={handleUpload}
-          />
+      {/* ─── Drop zone ─── */}
+      <div
+        onClick={() => fileInputRef.current?.click()}
+        onDragEnter={(e) => {
+          e.preventDefault()
+          dragCounter.current++
+          setDragOver(true)
+        }}
+        onDragLeave={(e) => {
+          e.preventDefault()
+          dragCounter.current--
+          if (dragCounter.current <= 0) {
+            dragCounter.current = 0
+            setDragOver(false)
+          }
+        }}
+        onDragOver={(e) => e.preventDefault()}
+        onDrop={handleDrop}
+        className="flex flex-col items-center justify-center gap-3 py-10 px-6 rounded-[18px] cursor-pointer transition-all duration-200 mb-8"
+        style={{
+          background: dragOver
+            ? 'linear-gradient(135deg, rgba(99,102,241,0.12), rgba(139,92,246,0.12))'
+            : 'rgba(255,255,255,0.7)',
+          border: dragOver
+            ? '2px dashed #6366f1'
+            : '2px dashed rgba(99,102,241,0.35)',
+          boxShadow: dragOver ? '0 8px 28px rgba(99,102,241,0.2)' : '0 2px 12px rgba(0,0,0,0.04)',
+          transform: dragOver ? 'scale(1.01)' : 'scale(1)',
+        }}
+      >
+        <div
+          className="w-12 h-12 rounded-[14px] flex items-center justify-center"
+          style={{
+            background: 'linear-gradient(135deg, #6366f1, #8b5cf6)',
+            boxShadow: '0 4px 14px rgba(99,102,241,0.35)',
+          }}
+        >
+          {uploading ? (
+            <Loader2 size={22} color="#fff" className="animate-spin" />
+          ) : (
+            <ImagePlus size={22} color="#fff" />
+          )}
         </div>
+        <div className="text-center">
+          <p className="text-[15px] font-bold text-[#0f172a]">
+            {uploading
+              ? 'アップロード中...'
+              : dragOver
+                ? 'ここにドロップして追加'
+                : '画像をドラッグ＆ドロップ'}
+          </p>
+          <p className="text-[12px] text-[#94a3b8] mt-1">
+            またはクリックしてファイルを選択（複数可）
+          </p>
+        </div>
+        <input
+          ref={fileInputRef}
+          type="file"
+          accept="image/*"
+          multiple
+          className="hidden"
+          onChange={(e) => {
+            if (e.target.files?.length) void uploadFiles(e.target.files)
+          }}
+        />
       </div>
 
       {/* ─── Stats bar ─── */}
@@ -274,7 +322,7 @@ export default function ImagesPage() {
           <p className="text-[15px] font-semibold text-[#64748b]">まだ画像がありません</p>
           <p className="text-[13px] text-[#94a3b8] text-center max-w-xs">
             記事作成のStep 3で画像を生成すると自動的にここに追加されます。
-            また右上のボタンから手動でアップロードもできます。
+            上のボックスから手動アップロードもできます。
           </p>
         </div>
       ) : (
@@ -287,7 +335,6 @@ export default function ImagesPage() {
               onLightbox={() => setLightbox(entry)}
               onDownload={() => handleDownload(entry)}
               onDelete={() => void handleDelete(entry.id)}
-              formatDate={formatDate}
             />
           ))}
         </div>
@@ -317,14 +364,12 @@ function ImageCard({
   onLightbox,
   onDownload,
   onDelete,
-  formatDate,
 }: {
   entry: ImageEntry
   deleting: boolean
   onLightbox: () => void
   onDownload: () => void
   onDelete: () => void
-  formatDate: (iso: string) => string
 }) {
   const [imgError, setImgError] = useState(false)
 
@@ -354,7 +399,8 @@ function ImageCard({
           // eslint-disable-next-line @next/next/no-img-element
           <img
             src={entry.url}
-            alt={entry.title}
+            alt=""
+            loading="lazy"
             onError={() => setImgError(true)}
             className="absolute inset-0 w-full h-full object-cover transition-transform duration-300 group-hover:scale-105"
           />
@@ -373,9 +419,7 @@ function ImageCard({
           className="absolute top-2 left-2 px-2 py-0.5 rounded-[6px] text-[10px] font-bold"
           style={{
             background:
-              entry.source === 'generated'
-                ? 'rgba(14,165,233,0.9)'
-                : 'rgba(16,185,129,0.9)',
+              entry.source === 'generated' ? 'rgba(14,165,233,0.9)' : 'rgba(16,185,129,0.9)',
             color: '#fff',
           }}
         >
@@ -383,38 +427,14 @@ function ImageCard({
         </div>
       </div>
 
-      {/* Info + Actions */}
-      <div className="px-3 py-3">
-        <p
-          className="text-[13px] font-semibold text-[#0f172a] leading-snug mb-1 line-clamp-2"
-          title={entry.title}
-        >
-          {entry.title}
-        </p>
-        {entry.targetKeyword && (
-          <p className="text-[11px] text-[#6366f1] font-medium truncate mb-1">
-            {entry.targetKeyword}
-          </p>
-        )}
-        <p className="text-[11px] text-[#94a3b8]">{formatDate(entry.createdAt)}</p>
-
-        <div className="flex items-center gap-1.5 mt-2.5">
-          <ActionBtn onClick={onDownload} title="ダウンロード" color="#0ea5e9">
-            <Download size={13} />
-          </ActionBtn>
-          <ActionBtn
-            onClick={onDelete}
-            title="削除"
-            color="#ef4444"
-            disabled={deleting}
-          >
-            {deleting ? (
-              <Loader2 size={13} className="animate-spin" />
-            ) : (
-              <Trash2 size={13} />
-            )}
-          </ActionBtn>
-        </div>
+      {/* Actions only */}
+      <div className="flex items-center justify-center gap-2 px-3 py-2.5">
+        <ActionBtn onClick={onDownload} title="ダウンロード" color="#0ea5e9">
+          <Download size={14} />
+        </ActionBtn>
+        <ActionBtn onClick={onDelete} title="削除" color="#ef4444" disabled={deleting}>
+          {deleting ? <Loader2 size={14} className="animate-spin" /> : <Trash2 size={14} />}
+        </ActionBtn>
       </div>
     </div>
   )
@@ -438,8 +458,8 @@ function ActionBtn({
       onClick={onClick}
       disabled={disabled}
       title={title}
-      className="w-8 h-8 rounded-[8px] flex items-center justify-center transition-colors disabled:opacity-50"
-      style={{ background: `${color}18`, color }}
+      className="flex-1 h-9 rounded-[9px] flex items-center justify-center transition-colors disabled:opacity-50"
+      style={{ background: `${color}14`, color }}
     >
       {children}
     </button>

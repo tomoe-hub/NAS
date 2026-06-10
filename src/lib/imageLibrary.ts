@@ -51,12 +51,38 @@ async function writeIndex(client: S3Client, entries: ImageEntry[]): Promise<void
   )
 }
 
-/** インデックスを取得（S3未設定の場合は空配列） */
+/** インデックスを取得（S3未設定の場合は空配列）。URLはアプリ内配信APIに差し替える */
 export async function listImages(): Promise<ImageEntry[]> {
   const client = getClient()
   if (!client) return []
   const entries = await readIndex(client)
-  return entries.sort((a, b) => b.createdAt.localeCompare(a.createdAt))
+  return entries
+    .sort((a, b) => b.createdAt.localeCompare(a.createdAt))
+    .map((e) => ({ ...e, url: `/api/image-library/file?id=${encodeURIComponent(e.id)}` }))
+}
+
+/** 画像バイナリをS3から取得（配信API用） */
+export async function getImageFile(
+  id: string
+): Promise<{ buffer: Buffer; contentType: string } | null> {
+  const client = getClient()
+  if (!client) return null
+  const entries = await readIndex(client)
+  const entry = entries.find((e) => e.id === id)
+  if (!entry) return null
+  try {
+    const res = await client.send(
+      new GetObjectCommand({ Bucket: BUCKET!, Key: entry.s3Key })
+    )
+    const bytes = await res.Body?.transformToByteArray()
+    if (!bytes) return null
+    return {
+      buffer: Buffer.from(bytes),
+      contentType: res.ContentType ?? (entry.s3Key.endsWith('.png') ? 'image/png' : 'image/jpeg'),
+    }
+  } catch {
+    return null
+  }
 }
 
 /** base64画像をS3に保存してインデックスに追加 */

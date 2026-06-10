@@ -283,29 +283,6 @@ function EditorContent() {
 
   const handleStep2Next = useCallback(() => setCurrentStep(3), [])
 
-  const saveToImageLibrary = useCallback(
-    async (imageBase64: string, mimeType: string, prompt?: string) => {
-      try {
-        await fetch('/api/image-library', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            imageBase64,
-            mimeType,
-            title: article.refinedTitle?.trim() || article.title,
-            targetKeyword: article.targetKeyword,
-            articleId: currentArticleId ?? undefined,
-            prompt,
-            source: 'generated',
-          }),
-        })
-      } catch {
-        // ライブラリ保存はサイレント失敗（記事生成フローを止めない）
-      }
-    },
-    [article.refinedTitle, article.title, article.targetKeyword, currentArticleId]
-  )
-
   const triggerFirefly = useCallback(async () => {
     setFireflyStatus('loading')
     setFireflyError(null)
@@ -330,12 +307,11 @@ function EditorContent() {
       const mimeType = data.mimeType ?? 'image/jpeg'
       updateArticle({ imageUrl: `data:${mimeType};base64,${data.imageBase64}` })
       setFireflyStatus('success')
-      void saveToImageLibrary(data.imageBase64, mimeType, data.prompt)
     } catch (e) {
       setFireflyError(e instanceof Error ? e.message : '画像生成に失敗しました')
       setFireflyStatus('error')
     }
-  }, [article.title, article.refinedTitle, article.refinedContent, article.targetKeyword, updateArticle, saveToImageLibrary])
+  }, [article.title, article.refinedTitle, article.refinedContent, article.targetKeyword, updateArticle])
 
   const handleImageUpload = useCallback(
     (imageUrl: string) => {
@@ -457,12 +433,11 @@ function EditorContent() {
       const mimeType = data.mimeType ?? 'image/jpeg'
       updateArticle({ imageUrl: `data:${mimeType};base64,${data.imageBase64}` })
       setFireflyStatus('success')
-      void saveToImageLibrary(data.imageBase64, mimeType, data.prompt)
     } catch (e) {
       setFireflyError(e instanceof Error ? e.message : '画像生成に失敗しました')
       setFireflyStatus('error')
     }
-  }, [article.title, article.refinedTitle, article.refinedContent, article.targetKeyword, updateArticle, saveToImageLibrary])
+  }, [article.title, article.refinedTitle, article.refinedContent, article.targetKeyword, updateArticle])
 
   const handlePublish = useCallback(async (choice: WordPressPublishChoice) => {
     setWordpressStatus('loading')
