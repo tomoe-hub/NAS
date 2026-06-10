@@ -829,14 +829,23 @@ ARCHETYPES:
 10) Succession or legacy mood: wooden desk, leather notebook, pen, family-business documents flat-lay, warm light, no people.
 11) Contract / legal mood: neat stack of agreements, fountain pen, white surface, no people, no readable clauses.
 12) Default corporate: clean Japanese office desk with documents and laptop, abstract screen graphics, navy white grey palette, no people.
+13) Handshake close-up: two suited professionals shaking hands across a glass desk, only forearms and cuffs visible, bright modern office, no faces, decisive corporate moment.
+14) Professional bookshelf: neatly arranged law and business volumes, warm library light, blurred leather chair foreground, no people, expertise and trust atmosphere.
+15) Twilight financial district: aerial wide shot of Japanese city towers with warm window glow against deep blue sky, no people, cinematic corporate ambiance.
+16) Abstract data visualization: floating 3D bar charts and trend lines in clean white space, soft studio shadows, no legible labels, professional infographic concept.
+17) Minimalist reception interior: low green accent plants, white walls, light oak desk, diffused daylight, no people, premium corporate interior photography.
+18) Over-the-shoulder analyst: professional reviewing abstract growth chart on large monitor, second colleague blurred in background, no legible screen text, modern open-plan office.
+19) Zen meeting room: natural stone accent wall, bamboo element, solid wood table, soft diffused light, no people, premium Japanese boardroom atmosphere.
+20) Close-up leather notebook: open leather-bound notebook, fountain pen resting on blank page, soft bokeh of documents in background, warm premium light, no people.
 
 GLOBAL RULES (mandatory):
 - Never ask for letters, numbers, logos, watermarks, subtitles, or readable text. Charts and screens must be abstract / illegible only.
 - Never describe letter blocks, engraved M or A, ampersand on cubes, or spelling words with blocks. Plain unmarked wooden cubes only if any cubes appear.
-- People allowed ONLY in archetypes 5–6 and 8–9. Then: no selfie, no glamor portrait; hands and materials in focus; faces partial or softly blurred.
-- Photorealistic, professional lighting, navy/grey/white friendly palette unless skyscraper night cool tones.
+- People allowed ONLY in archetypes 5–6, 8–9, 13, 18. Then: no selfie, no glamor portrait; hands and materials in focus; faces partial or softly blurred.
+- Photorealistic, professional lighting, navy/grey/white friendly palette unless archetype calls for warm or twilight tones.
+- Pick archetypes 13–20 at least 40% of the time to ensure variety and avoid repetition.
 
-OUTPUT: One English sentence only, max 45 words, no quotation marks, no explanation.
+OUTPUT: One English sentence only, max 50 words, no quotation marks, no explanation.
 
 TITLE:
 ${title.trim()}

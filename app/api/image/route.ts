@@ -12,27 +12,51 @@ function pickRandom<T>(items: readonly T[]): T {
   return items[Math.floor(Math.random() * items.length)]!
 }
 
-/** buildPrompt 用: 文字・ロゴを要求しないビジネス系アーキタイプ（無地キューブのみ／人物シーンは顔を主にしない） */
+/** buildPrompt 用: 文字・ロゴを要求しないビジネス系アーキタイプ */
 const ARCH_FLATLAY = [
   'overhead flat-lay of business documents and laptop with abstract colorful charts only no legible text, pen and coffee cup on clean white desk, professional stock photography, no people',
   'overhead flat-lay of financial printouts and abstract graphs, calculator and pen on white conference table, no readable numbers, no people, corporate photography',
   'overhead view of clean white desk with documents, laptop showing abstract dashboard graphics, professional M&A advisory workspace, no people',
   'overhead flat-lay of merger agreement stack, corporate stamp, pen and glasses on white desk, no people, professional stock photo',
   'overhead flat-lay on white desk: business papers, two plain solid wooden cubes with no letters or engraving, laptop with abstract charts, pen, no people',
+  'close-up overhead of open leather notebook, fountain pen resting on blank page, blurred laptop and documents in background, warm professional lighting, no readable text, no people',
+  'flat-lay of Japanese business desk: neatly arranged documents, navy blue folder, minimalist pen and ruler, soft natural light, no people, no text',
 ] as const
 
 const ARCH_PEOPLE_DESK = [
   'two business professionals in suits at bright white desk, open binder with colorful charts and tablet, hands reviewing documents in sharp focus, faces softly blurred or cropped, modern office, no camera-facing portrait',
   'side view of business colleagues at desk with documents and tablet, emphasis on charts and materials, shallow depth of field, faces not dominant, bright professional office',
   'modern office collaboration on light wooden desk, hands gesturing over laptop with abstract UI blocks, notebook and smartphone, strong bokeh, casual business shirt, second person blurred in background',
+  'close-up of two professionals in suits shaking hands over a glass desk, only hands and suit sleeves visible, bright modern office, no faces, professional corporate photography',
+  'over-the-shoulder shot of professional reviewing abstract charts on large monitor, blurred second colleague nearby, modern bright office, no legible text on screen',
 ] as const
 
 const ARCH_SKYLINE = [
   'dramatic low-angle worm-eye view of modern glass skyscrapers converging toward pale sky, cool blue-grey steel and glass facades, some warm lit windows, financial district, no people visible',
+  'twilight aerial view of dense Japanese city financial district, warm office lights glowing in glass towers, deep blue sky, no people visible, cinematic wide shot',
+  'symmetrical perspective of modern high-rise office corridor, glass and steel architecture, cool blue morning light, empty and professional, no people',
 ] as const
 
 const ARCH_MEETING_WIDE = [
   'wide shot of modern conference table, business team seen from behind with laptops and document binders, strategy meeting atmosphere, silhouettes, no facial close-ups',
+  'bright minimalist boardroom with long white table, empty chairs, large window with soft morning light, no people, corporate interior photography',
+  'panoramic shot of sleek open-plan office, clean desks, abstract data visualization on large wall screen, plants, soft natural light, no people, corporate interior',
+] as const
+
+const ARCH_GRAPH_DATA = [
+  'abstract 3D bar charts and pie graphs floating in clean white space, soft shadows, professional data visualization, no text labels, corporate infographic style, no people',
+  'close-up of financial dashboard on tablet screen showing abstract colored graphs and trend lines, no readable numbers, blurred background office, corporate stock photo',
+  'digital double-exposure of city skyline and abstract business growth chart lines, navy blue gradient background, no text, professional corporate concept',
+] as const
+
+const ARCH_NATURE_TRUST = [
+  'minimalist Japanese corporate office reception with low green plants, white walls, light oak wood desk, soft diffused daylight, no people, high-end professional interior',
+  'serene zen-inspired meeting room with stone elements, bamboo accent wall, natural wood table, soft light, professional Japanese business atmosphere, no people',
+] as const
+
+const ARCH_LIBRARY_EXPERTISE = [
+  'professional bookshelf with neatly arranged law and business books, warm library lighting, leather chair in foreground slightly blurred, no people, professional expertise setting',
+  'close-up of neat stack of business strategy books with a pair of glasses resting on top, warm desk lamp light, no readable titles, professional corporate photography',
 ] as const
 
 function getBedrockClient(): BedrockRuntimeClient {
@@ -188,41 +212,65 @@ function buildPrompt(title: string, targetKeyword?: string): string {
   const isPMI = /PMI|統合|経営統合/.test(text)
   const isSuccession = /後継者|引継|承継/.test(text)
   const isMA = /M&A|買収|合併|仲介|売却/.test(text)
+  const isData = /分析|調査|統計|データ|レポート|ランキング|比較/.test(text)
+  const isExpertise = /専門|顧問|コンサル|士業|弁護士|会計士|税理士/.test(text)
 
   let theme = ''
 
   if (isContract) {
-    const pool = [
+    theme = pickRandom([
       ...ARCH_FLATLAY,
       'overhead flat-lay of stacked business contract documents and fountain pen on white desk, abstract seals only no readable clauses, no people',
-    ]
-    theme = pickRandom(pool)
+      ...ARCH_LIBRARY_EXPERTISE,
+    ])
   } else if (isFinance) {
-    const pool = [
+    theme = pickRandom([
       ...ARCH_FLATLAY,
+      ...ARCH_GRAPH_DATA,
       'overhead flat-lay of financial charts and business reports on clean white conference table, calculator and pen, abstract graphs only no legible figures, no people',
-    ]
-    theme = pickRandom(pool)
+    ])
   } else if (isPMI) {
-    theme = pickRandom([...ARCH_MEETING_WIDE, ...ARCH_PEOPLE_DESK, ...ARCH_FLATLAY])
+    theme = pickRandom([
+      ...ARCH_MEETING_WIDE,
+      ...ARCH_PEOPLE_DESK,
+      ...ARCH_FLATLAY,
+      ...ARCH_NATURE_TRUST,
+    ])
   } else if (isSuccession) {
-    const pool = [
+    theme = pickRandom([
       'overhead flat-lay of business succession documents, company seal, pen and leather notebook on clean wooden desk, warm office lighting, no readable text, no people',
       ...ARCH_FLATLAY,
-    ]
-    theme = pickRandom(pool)
+      ...ARCH_NATURE_TRUST,
+      ...ARCH_LIBRARY_EXPERTISE,
+    ])
   } else if (isMA) {
-    const pool = [
+    theme = pickRandom([
       ...ARCH_FLATLAY,
       ...ARCH_PEOPLE_DESK,
       ...ARCH_SKYLINE,
       ...ARCH_MEETING_WIDE,
-    ]
-    theme = pickRandom(pool)
+      ...ARCH_GRAPH_DATA,
+    ])
+  } else if (isData) {
+    theme = pickRandom([
+      ...ARCH_GRAPH_DATA,
+      ...ARCH_FLATLAY,
+      ...ARCH_MEETING_WIDE,
+    ])
+  } else if (isExpertise) {
+    theme = pickRandom([
+      ...ARCH_LIBRARY_EXPERTISE,
+      ...ARCH_PEOPLE_DESK,
+      ...ARCH_FLATLAY,
+      ...ARCH_NATURE_TRUST,
+    ])
   } else {
     theme = pickRandom([
       ...ARCH_FLATLAY,
       ...ARCH_SKYLINE,
+      ...ARCH_MEETING_WIDE,
+      ...ARCH_GRAPH_DATA,
+      ...ARCH_NATURE_TRUST,
       'overhead flat-lay of Japanese business documents, notebook, pen and laptop with abstract screen, clean office desk, no people',
     ])
   }

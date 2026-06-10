@@ -12,6 +12,7 @@ import {
   BarChart3,
   Database,
   ShieldAlert,
+  Images,
 } from 'lucide-react'
 import MainContentWidth from './MainContentWidth'
 
@@ -24,6 +25,7 @@ const navItems = [
   { href: '/keywords',  label: 'キーワード',           icon: Hash },
   { href: '/ahrefs',    label: 'KW分析',               icon: BarChart3 },
   { href: '/materials', label: '資料更新',              icon: Database },
+  { href: '/images',    label: '画像',                  icon: Images },
   { href: '/notice',    label: '注意書き',              icon: ShieldAlert },
 ]
 
