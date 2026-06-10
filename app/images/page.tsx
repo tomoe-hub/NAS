@@ -351,7 +351,7 @@ function ImageCard({
             <ImageOff size={24} style={{ color: '#94a3b8' }} />
           </div>
         ) : (
-          {/* eslint-disable-next-line @next/next/no-img-element */}
+          // eslint-disable-next-line @next/next/no-img-element
           <img
             src={entry.url}
             alt={entry.title}
