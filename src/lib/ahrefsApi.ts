@@ -1,8 +1,8 @@
 /**
  * Ahrefs API v3 クライアント
  *
- * Site Explorer › organic-keywords を使い、対象ドメインのオーガニック
- * 検索キーワード・順位・流入データを取得して AhrefsKeywordRow 形式に変換する。
+ * - Site Explorer › organic-keywords: 対象ドメインの順位KWを取得
+ * - Keywords Explorer › overview:      既存KWリストのメトリクスを一括更新
  *
  * 必要な環境変数:
  *   AHREFS_API_KEY       … APIキー（Ahrefs Developer ページで発行）
@@ -153,6 +153,139 @@ export async function fetchOrganicKeywords(options: AhrefsApiOptions = {}): Prom
   const rows = data.keywords ?? []
 
   return rows.map(mapOrganicRow)
+}
+
+// ── Keywords Explorer ────────────────────────────────────
+
+interface KwExplorerRow {
+  keyword: string
+  volume: number | null
+  difficulty: number | null
+  cpc: number | null
+  cps: number | null
+  parent_topic: string | null
+  traffic_potential: number | null
+  global_volume: number | null
+  intents: {
+    informational?: boolean
+    navigational?: boolean
+    commercial?: boolean
+    transactional?: boolean
+    branded?: boolean
+    local?: boolean
+  } | null
+  serp_features?: string[] | null
+}
+
+interface KwExplorerResponse {
+  keywords?: KwExplorerRow[]
+}
+
+function buildIntentsFromObject(
+  intents: KwExplorerRow['intents']
+): string {
+  if (!intents) return ''
+  const parts: string[] = []
+  if (intents.informational)  parts.push('Informational')
+  if (intents.commercial)     parts.push('Commercial')
+  if (intents.transactional)  parts.push('Transactional')
+  if (intents.navigational)   parts.push('Navigational')
+  if (intents.branded)        parts.push('Branded')
+  if (intents.local)          parts.push('Local')
+  return parts.join(',')
+}
+
+function mapKwExplorerRow(row: KwExplorerRow): AhrefsKeywordRow {
+  return {
+    keyword:          row.keyword,
+    volume:           row.volume ?? 0,
+    kd:               row.difficulty ?? 0,
+    cpc:              row.cpc != null ? Math.round(row.cpc) / 100 : 0,
+    cps:              row.cps ?? 0,
+    parentTopic:      row.parent_topic ?? '',
+    svTrend:          [],   // KE overview では履歴は別エンドポイントのため省略
+    svForecast:       [],
+    category:         '',
+    trafficPotential: row.traffic_potential ?? 0,
+    globalVolume:     row.global_volume ?? 0,
+    intents:          buildIntentsFromObject(row.intents),
+    position:         null,
+    positionChange:   null,
+    url:              '',
+    currentTraffic:   null,
+    previousTraffic:  null,
+    trafficChange:    null,
+    branded:          false,
+    serpFeatures:     (row.serp_features ?? []).join(','),
+  }
+}
+
+/** バッチサイズ（KE API は 1 リクエストに含めるキーワード数の上限がプランで変わる） */
+const KE_BATCH_SIZE = 100
+
+/**
+ * Keywords Explorer overview エンドポイントを使って
+ * 任意のキーワードリストのメトリクスを取得する。
+ *
+ * @param keywords 更新したいキーワードの配列
+ * @param options  country などオプション
+ */
+export async function fetchKeywordMetrics(
+  keywords: string[],
+  options: { country?: string } = {}
+): Promise<AhrefsKeywordRow[]> {
+  const apiKey = process.env.AHREFS_API_KEY?.trim()
+  if (!apiKey) throw new Error('AHREFS_API_KEY が設定されていません')
+  if (keywords.length === 0) return []
+
+  const country = options.country ?? process.env.AHREFS_COUNTRY?.trim() ?? 'jp'
+
+  // volume・difficulty など 10-unit フィールドは必要最小限に絞る
+  const SELECT_COLS = [
+    'keyword',
+    'volume',
+    'difficulty',
+    'cpc',
+    'cps',
+    'parent_topic',
+    'traffic_potential',
+    'global_volume',
+    'intents',
+    'serp_features',
+  ].join(',')
+
+  const results: AhrefsKeywordRow[] = []
+
+  // キーワードをバッチに分割してリクエスト
+  for (let i = 0; i < keywords.length; i += KE_BATCH_SIZE) {
+    const batch = keywords.slice(i, i + KE_BATCH_SIZE)
+    const params = new URLSearchParams({
+      keywords: batch.join(','),
+      country,
+      select:   SELECT_COLS,
+      limit:    String(KE_BATCH_SIZE),
+    })
+
+    const url = `${BASE_URL}/keywords-explorer/overview?${params.toString()}`
+    const res = await fetch(url, {
+      headers: {
+        Authorization: `Bearer ${apiKey}`,
+        Accept: 'application/json',
+      },
+      cache: 'no-store',
+    })
+
+    if (!res.ok) {
+      const body = await res.text().catch(() => '')
+      throw new Error(`Ahrefs KE API エラー ${res.status}: ${body.slice(0, 300)}`)
+    }
+
+    const data = (await res.json()) as KwExplorerResponse
+    const rows = data.keywords ?? []
+    results.push(...rows.map(mapKwExplorerRow))
+  }
+
+  return results
 }
 
 /**

@@ -152,8 +152,22 @@ export default function AhrefsPage() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({}),
       })
-      const data = await res.json() as { rowCount?: number; fileName?: string; error?: string; usage?: Record<string, number> | null }
+      const data = await res.json() as {
+        organic?:  { rowCount?: number; fileName?: string }
+        keywords?: { rowCount?: number; fileName?: string }
+        keError?:  string
+        error?:    string
+        usage?:    Record<string, number> | null
+        // 旧フォーマット後方互換
+        rowCount?: number
+        fileName?: string
+      }
       if (!res.ok || data.error) throw new Error(data.error ?? '取得に失敗しました')
+
+      // 新フォーマット（organic + keywords）または旧フォーマット（rowCount）に対応
+      const organicCount  = data.organic?.rowCount  ?? data.rowCount ?? 0
+      const keywordsCount = data.keywords?.rowCount ?? 0
+
       let usageMsg = ''
       if (data.usage) {
         const used  = data.usage.units_used_this_month ?? data.usage.used
@@ -162,7 +176,16 @@ export default function AhrefsPage() {
           usageMsg = `（今月 ${used.toLocaleString()} / ${total.toLocaleString()} units使用）`
         }
       }
-      setApiToast({ msg: `更新完了：${data.rowCount ?? 0} KW 取得${usageMsg}`, isError: false })
+
+      let msg = `更新完了：競合KW ${organicCount} 件`
+      if (keywordsCount > 0) {
+        msg += `・狙い目KW ${keywordsCount} 件`
+      } else if (data.keError) {
+        msg += `　※狙い目KW: ${data.keError}`
+      }
+      msg += usageMsg
+
+      setApiToast({ msg, isError: false })
       await fetchData()
     } catch (e) {
       setApiToast({ msg: `エラー: ${e instanceof Error ? e.message : '取得に失敗しました'}`, isError: true })

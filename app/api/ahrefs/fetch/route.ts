@@ -16,11 +16,11 @@
  */
 
 import { NextRequest, NextResponse } from 'next/server'
-import { fetchOrganicKeywords, fetchApiUsage } from '@/lib/ahrefsApi'
+import { fetchOrganicKeywords, fetchKeywordMetrics, fetchApiUsage } from '@/lib/ahrefsApi'
 import { putS3Object, getS3ObjectAsText } from '@/lib/s3Reference'
 import type { AhrefsDataset, DatasetMeta } from '@/lib/ahrefsCsvParser'
 
-export const maxDuration = 60
+export const maxDuration = 120
 
 const PREFIX    = 'kw-analysis/'
 const INDEX_KEY = `${PREFIX}index.json`
@@ -35,6 +35,30 @@ async function saveIndex(index: DatasetMeta[]): Promise<void> {
   await putS3Object(INDEX_KEY, JSON.stringify(index, null, 2))
 }
 
+/** 既存の type:'keywords' データセットからユニークKWリストを収集する */
+async function collectExistingKeywords(index: DatasetMeta[]): Promise<string[]> {
+  const kwMetas = index.filter(m => m.type === 'keywords')
+  if (kwMetas.length === 0) return []
+
+  const kwSet = new Set<string>()
+  await Promise.all(
+    kwMetas.map(async meta => {
+      try {
+        const key = `${PREFIX}datasets/${meta.id}.json`
+        const obj = await getS3ObjectAsText(key)
+        if (!obj) return
+        const dataset = JSON.parse(obj.content) as AhrefsDataset
+        for (const row of dataset.keywords) {
+          if (row.keyword?.trim()) kwSet.add(row.keyword.trim())
+        }
+      } catch {
+        // 個別データセット読み込み失敗は無視
+      }
+    })
+  )
+  return Array.from(kwSet)
+}
+
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json().catch(() => ({})) as {
@@ -44,61 +68,115 @@ export async function POST(request: NextRequest) {
       date?: string
     }
 
-    const rows = await fetchOrganicKeywords({
+    const target  = body.target  ?? process.env.AHREFS_TARGET_DOMAIN ?? 'unknown'
+    const country = body.country ?? process.env.AHREFS_COUNTRY ?? 'jp'
+    const date    = body.date    ?? new Date(Date.now() - 86400000).toISOString().slice(0, 10)
+    const now     = new Date().toISOString()
+
+    // ── 1. 競合KW（Site Explorer organic-keywords）取得 ────────────────
+    const organicRows = await fetchOrganicKeywords({
       target:  body.target,
       country: body.country,
       limit:   body.limit,
       date:    body.date,
     })
 
-    if (rows.length === 0) {
+    if (organicRows.length === 0) {
       return NextResponse.json(
         { error: 'キーワードデータが見つかりません。ドメインと対象国を確認してください。' },
         { status: 400 }
       )
     }
 
-    const target  = body.target  ?? process.env.AHREFS_TARGET_DOMAIN ?? 'unknown'
-    const country = body.country ?? process.env.AHREFS_COUNTRY ?? 'jp'
-    const date    = body.date    ?? new Date(Date.now() - 86400000).toISOString().slice(0, 10)
+    const organicId       = `api_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`
+    const organicFileName = `Ahrefs API (競合KW) - ${target} (${country}) ${date}`
 
-    const id        = `api_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`
-    const now       = new Date().toISOString()
-    const fileName  = `Ahrefs API - ${target} (${country}) ${date}`
-
-    const dataset: AhrefsDataset = {
-      id,
+    const organicDataset: AhrefsDataset = {
+      id:         organicId,
       uploadedAt: now,
-      fileName,
-      rowCount:   rows.length,
+      fileName:   organicFileName,
+      rowCount:   organicRows.length,
       type:       'organic',
-      keywords:   rows,
+      keywords:   organicRows,
     }
 
-    const key   = `${PREFIX}datasets/${id}.json`
-    const saved = await putS3Object(key, JSON.stringify(dataset))
-    if (!saved) {
-      return NextResponse.json({ error: 'S3への保存に失敗しました' }, { status: 500 })
+    const organicKey   = `${PREFIX}datasets/${organicId}.json`
+    const organicSaved = await putS3Object(organicKey, JSON.stringify(organicDataset))
+    if (!organicSaved) {
+      return NextResponse.json({ error: 'S3への保存に失敗しました（競合KW）' }, { status: 500 })
     }
 
     const index = await loadIndex()
-    index.push({ id, uploadedAt: now, fileName, rowCount: rows.length, type: 'organic' })
+    index.push({
+      id:         organicId,
+      uploadedAt: now,
+      fileName:   organicFileName,
+      rowCount:   organicRows.length,
+      type:       'organic',
+    })
+
+    // ── 2. 狙い目KW（Keywords Explorer overview）取得 ──────────────────
+    let keResult: { id: string; fileName: string; rowCount: number } | null = null
+    let keError: string | null = null
+
+    const existingKeywords = await collectExistingKeywords(index)
+    if (existingKeywords.length > 0) {
+      try {
+        const keRows = await fetchKeywordMetrics(existingKeywords, { country })
+
+        if (keRows.length > 0) {
+          const keId       = `api_ke_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`
+          const keFileName = `Ahrefs API (狙い目KW) - ${country} ${date}`
+
+          const keDataset: AhrefsDataset = {
+            id:         keId,
+            uploadedAt: now,
+            fileName:   keFileName,
+            rowCount:   keRows.length,
+            type:       'keywords',
+            keywords:   keRows,
+          }
+
+          const keKey = `${PREFIX}datasets/${keId}.json`
+          await putS3Object(keKey, JSON.stringify(keDataset))
+
+          index.push({
+            id:         keId,
+            uploadedAt: now,
+            fileName:   keFileName,
+            rowCount:   keRows.length,
+            type:       'keywords',
+          })
+
+          keResult = { id: keId, fileName: keFileName, rowCount: keRows.length }
+        }
+      } catch (e) {
+        keError = e instanceof Error ? e.message : 'Keywords Explorer取得エラー'
+        console.error('[Ahrefs Fetch] KE error:', keError)
+      }
+    } else {
+      keError = '狙い目KWのデータが見つかりません（先にCSVをインポートしてください）'
+    }
+
     await saveIndex(index)
 
     // API使用量を取得して返す（任意）
     const usage = await fetchApiUsage()
 
     return NextResponse.json({
-      id,
-      fileName,
-      rowCount: rows.length,
-      type:     'organic',
+      organic: {
+        id:       organicId,
+        fileName: organicFileName,
+        rowCount: organicRows.length,
+        type:     'organic',
+      },
+      keywords: keResult ?? undefined,
+      keError:  keError  ?? undefined,
       usage,
     })
   } catch (e) {
     const message = e instanceof Error ? e.message : 'Ahrefs APIからのデータ取得に失敗しました'
     console.error('[Ahrefs Fetch] error:', message)
-    // エラー詳細をクライアントに返してデバッグしやすくする
     return NextResponse.json({ error: message }, { status: 500 })
   }
 }
