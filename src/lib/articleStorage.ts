@@ -39,8 +39,16 @@ export async function deleteArticle(id: string): Promise<void> {
 }
 
 export async function getArticleById(id: string): Promise<SavedArticle | null> {
-  const all = await getAllArticles()
-  return all.find(a => a.id === id) ?? null
+  try {
+    const res = await fetch(`${API_BASE}?id=${encodeURIComponent(id)}`)
+    if (res.status === 404) return null
+    if (!res.ok) throw new Error(`GET ${res.status}`)
+    const data = await res.json() as { article?: SavedArticle }
+    return data.article ?? null
+  } catch (e) {
+    console.error('getArticleById error:', e)
+    return null
+  }
 }
 
 export async function updateArticleStatus(

@@ -46,6 +46,8 @@ interface SavedState {
   refineSlugSuggestion?: string
   /** WordPressタグ入力の生文字列（編集中の区切りを保持） */
   wordpressTagsInput?: string
+  /** 現在編集中の記事ID（S3フェッチ省略のために保持） */
+  currentArticleId?: string | null
 }
 
 function loadState(): SavedState | null {
@@ -97,16 +99,32 @@ function EditorContent() {
     const stepParam = searchParams.get('step')
 
     if (articleId) {
-      const savedArticle = await getArticleById(articleId)
-      if (savedArticle) {
+      // ── Fix A: localStorage に同一IDのデータがあれば S3 フェッチをスキップ ──
+      const localState = loadState()
+      const localArticleId = localState?.currentArticleId ?? null
+
+      function applyArticle(savedArticle: {
+        id: string
+        title: string
+        refinedTitle?: string
+        targetKeyword?: string
+        originalContent: string
+        refinedContent: string
+        imageUrl?: string
+        internalLinks?: unknown[]
+        wordpressUrl?: string
+        wordpressPostStatus?: string
+        wordpressTags?: string[]
+        slug?: string
+      }) {
         clearDraftMaterialBindingSession()
         setArticle({
           title: savedArticle.title,
-          refinedTitle: savedArticle.refinedTitle,
+          refinedTitle: savedArticle.refinedTitle ?? '',
           targetKeyword: savedArticle.targetKeyword,
           originalContent: savedArticle.originalContent,
           refinedContent: savedArticle.refinedContent,
-          imageUrl: savedArticle.imageUrl,
+          imageUrl: savedArticle.imageUrl ?? '',
           internalLinks: [],
           wordpressUrl: savedArticle.wordpressUrl,
           wordpressPostStatus: savedArticle.wordpressPostStatus,
@@ -116,6 +134,55 @@ function EditorContent() {
         setSlug(savedArticle.slug || '')
         setRefineSlugSuggestion(savedArticle.slug || '')
         setWordpressTagsInput((savedArticle.wordpressTags ?? []).join('、'))
+      }
+
+      // localStorage と articleId が一致 → ネットワーク不要でそのまま復元
+      if (localState && localArticleId === articleId) {
+        applyArticle({
+          id: articleId,
+          title: localState.article.title,
+          refinedTitle: localState.article.refinedTitle,
+          targetKeyword: localState.article.targetKeyword,
+          originalContent: localState.article.originalContent,
+          refinedContent: localState.article.refinedContent,
+          imageUrl: localState.article.imageUrl,
+          wordpressUrl: localState.article.wordpressUrl,
+          wordpressPostStatus: localState.article.wordpressPostStatus,
+          wordpressTags: localState.article.wordpressTags,
+          slug: localState.slug,
+        })
+        const parsedStep = Number(stepParam)
+        if (parsedStep === 4) {
+          const content = applyInternalLinksToText(
+            localState.article.refinedContent || localState.article.originalContent || '',
+            []
+          )
+          sessionStorage.setItem('preview_content', content)
+          const params = new URLSearchParams({
+            title: (localState.article.refinedTitle || localState.article.title || '').trim(),
+            imageUrl: localState.article.imageUrl || '',
+            category: 'お役立ち情報',
+            date: new Date().toLocaleDateString('ja-JP', { year: 'numeric', month: 'numeric', day: 'numeric' }).replace(/\//g, '.'),
+          })
+          params.set('articleId', articleId)
+          router.replace(`/preview?${params.toString()}`)
+          setMounted(true)
+          return
+        }
+        if ([1, 2, 3, 5].includes(parsedStep)) {
+          setCurrentStep(parsedStep as Step)
+        }
+        setGeminiStatus(localState.article.refinedContent ? 'success' : 'idle')
+        setFireflyStatus(localState.article.imageUrl ? 'success' : 'idle')
+        setGeminiToastShown(Boolean(localState.article.refinedContent))
+        setMounted(true)
+        return
+      }
+
+      // ── Fix B: localStorage に該当なし → 単一記事エンドポイントで取得 ──
+      const savedArticle = await getArticleById(articleId)
+      if (savedArticle) {
+        applyArticle(savedArticle)
         const parsedStep = Number(stepParam)
         if (parsedStep === 4) {
           const content = applyInternalLinksToText(
@@ -202,8 +269,9 @@ function EditorContent() {
       slug,
       refineSlugSuggestion,
       wordpressTagsInput,
+      currentArticleId,
     })
-  }, [article, currentStep, geminiStatus, fireflyStatus, mounted, slug, refineSlugSuggestion, wordpressTagsInput])
+  }, [article, currentStep, geminiStatus, fireflyStatus, mounted, slug, refineSlugSuggestion, wordpressTagsInput, currentArticleId])
 
   const updateArticle = useCallback((updates: Partial<ArticleData>) => {
     setArticle(prev => ({ ...prev, ...updates }))
