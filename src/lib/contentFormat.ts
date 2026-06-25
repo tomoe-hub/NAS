@@ -77,6 +77,86 @@ function isUrlSchemeColon(source: string, colonIdx: number, body: string): boole
  *   - 行末が「。」「ます」「です」「ません」などの文末表現で終わっていないこと
  *     （= 完結した文章ではなくラベル+説明の形式であることを確認）
  */
+/**
+ * 連続する記号見出し（■ ラベル のみで直後に本文がない）を箇条書きに変換する。
+ *
+ * normalizeBoldLabelLines の後段として呼び出す。
+ * Gemini が **ラベルA** / **ラベルB** / **ラベルC** を本文なしで連続出力した場合、
+ * normalizeBoldLabelLines で ■ 形式に変換されたあと、さらに ・箇条書き に変換して
+ * <h3> が連続する問題を防ぐ。
+ *
+ * 変換条件:
+ *   - 2行以上の ■ ラベル が「直後に本文行なし」で連続している
+ *   - 「直後に本文行なし」= 次の非空行もまた ■ ラベル or 文書終端
+ *
+ * 例（変換前）:
+ *   ■ 理由A          ■ 理由B          ■ 理由C
+ * 例（変換後）:
+ *   ・理由A          ・理由B          ・理由C
+ */
+export function convertConsecutiveHeadingsToBullets(text: string): string {
+  if (!text) return text
+  const lines = text.split('\n')
+
+  type LineType = 'heading' | 'empty' | 'body'
+  const lineTypes: LineType[] = lines.map(l => {
+    const t = l.trim()
+    if (/^[■▶◆●▼]\s/.test(t)) return 'heading'
+    if (t === '') return 'empty'
+    return 'body'
+  })
+
+  // 各 heading 行が「直後に本文なし」かを判定（次の非空行も heading か末尾）
+  const isBodyless: boolean[] = new Array(lines.length).fill(false)
+  for (let i = 0; i < lines.length; i++) {
+    if (lineTypes[i] !== 'heading') continue
+    let j = i + 1
+    while (j < lines.length && lineTypes[j] === 'empty') j++
+    // 次の非空行が heading か末尾なら「本文なし」
+    if (j >= lines.length || lineTypes[j] === 'heading') {
+      isBodyless[i] = true
+    }
+  }
+
+  // 「本文なしの heading」が隣接している範囲（ランン）を特定
+  // → ラン長 >= 2 のものだけ箇条書きに変換
+  const inRun: boolean[] = new Array(lines.length).fill(false)
+  for (let i = 0; i < lines.length; i++) {
+    if (!isBodyless[i]) continue
+    // 前後に別の bodyless heading があるか
+    let j = i - 1
+    while (j >= 0 && lineTypes[j] === 'empty') j--
+    const prevIsBodylessHeading = j >= 0 && lineTypes[j] === 'heading' && isBodyless[j]
+
+    let k = i + 1
+    while (k < lines.length && lineTypes[k] === 'empty') k++
+    const nextIsBodylessHeading = k < lines.length && lineTypes[k] === 'heading' && isBodyless[k]
+
+    if (prevIsBodylessHeading || nextIsBodylessHeading) {
+      inRun[i] = true
+    }
+  }
+
+  // 再構築
+  const out: string[] = []
+  for (let i = 0; i < lines.length; i++) {
+    const line = lines[i]!
+    const t = line.trim()
+
+    if (lineTypes[i] === 'heading' && inRun[i]) {
+      const label = t.replace(/^[■▶◆●▼]\s*/, '')
+      // 前の出力が空行でなければ空行を挿入（箇条書きブロックの開始）
+      const prev = out[out.length - 1]?.trim() ?? ''
+      if (prev !== '' && !/^[・]/.test(prev)) out.push('')
+      out.push(`・${label}`)
+    } else {
+      out.push(line)
+    }
+  }
+
+  return out.join('\n').replace(/\n{3,}/g, '\n\n')
+}
+
 export function normalizeBoldLabelLines(content: string): string {
   if (!content) return content
 

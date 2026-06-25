@@ -24,7 +24,7 @@ import { getSupervisorBlockHtml } from './supervisorBlock'
 import { resolveCanonicalPostSlug } from './slugNormalize'
 import { normalizeWordPressTagsFromRequest } from './wordpressTags'
 import { decodeHtmlEntities } from './wpTagList'
-import { normalizeBoldLabelLines } from './contentFormat'
+import { normalizeBoldLabelLines, convertConsecutiveHeadingsToBullets } from './contentFormat'
 
 /** 監修者画像のデフォルト（WordPressメディアライブラリ・左の丸画像用） */
 const DEFAULT_SUPERVISOR_IMAGE_URL = 'https://nihon-teikei.co.jp/wp-content/uploads/2026/03/3159097ae625791c1a400e6900330153.png'
@@ -288,7 +288,7 @@ export function convertToHtml(content: string): string {
   // 「**ラベル：本文**」のような太字ラップ行を見出し+段落に正規化してから
   // 既存の行単位パースへ流す。これにより WordPress 側でも h3 見出し+段落
   // 構造になり、NTS テーマの見出し下線スタイルが適用される。
-  const normalized = normalizeBoldLabelLines(content);
+  const normalized = convertConsecutiveHeadingsToBullets(normalizeBoldLabelLines(content));
   const lines = normalized.split('\n');
   const htmlLines: string[] = [];
   let currentParagraph: string[] = [];
@@ -389,7 +389,29 @@ export function convertToHtml(content: string): string {
   }
 
   flushParagraph();
-  return fixStrongParagraphNesting(htmlLines.join('\n'));
+  const joined = fixStrongParagraphNesting(htmlLines.join('\n'));
+  // 連続する同レベル見出しの間に残った隙間がある場合のHTML後処理
+  // （テキスト変換で捕捉できなかった numbered heading 連続などを補完）
+  return fixConsecutiveHeadingsHtml(joined);
+}
+
+/**
+ * HTML文字列内で連続する見出しタグ（</h2><h2> や </h3><h3>）を検出し、
+ * 視覚的な区切りを確保する。numbered heading（1. / 1-1. 形式）の連続は
+ * テキスト前処理では捕捉しにくいため、HTML生成後の最終ガードとして機能する。
+ */
+function fixConsecutiveHeadingsHtml(html: string): string {
+  // </h3> の直後（空白のみ）に <h3 が続く場合 → margin 追加
+  let result = html.replace(
+    /(<\/h3>)([\s\n]*)(<h3)/g,
+    '$1$2<p style="margin:0 0 0.8em;"></p>\n$3'
+  )
+  // </h2> の直後に <h2 が続く場合（同上）
+  result = result.replace(
+    /(<\/h2>)([\s\n]*)(<h2)/g,
+    '$1$2<p style="margin:0 0 1.2em;"></p>\n$3'
+  )
+  return result
 }
 
 /** HTMLタグ・マークダウン記法除去と主要なHTMLエンティティのデコード（Schema/FAQ用プレーンテキスト化） */

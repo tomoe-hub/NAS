@@ -5,7 +5,7 @@ import { useCallback, useMemo, useState, useEffect, Suspense } from 'react'
 import StepIndicator from '@/components/editor/StepIndicator'
 import type { Step } from '@/lib/types'
 import { getSupervisorBlockHtml } from '@/lib/supervisorBlock'
-import { normalizeBoldLabelLines } from '@/lib/contentFormat'
+import { normalizeBoldLabelLines, convertConsecutiveHeadingsToBullets } from '@/lib/contentFormat'
 
 const DUMMY_ARTICLES = [
   {
@@ -67,7 +67,7 @@ function insertCtaBannersForPreview(html: string): string {
 function formatContent(content: string, imageUrl: string): string {
   // 「**ラベル：本文**」のような太字ラップ行を見出し+段落に正規化してから
   // 既存の行単位パースへ流す（公開時の WordPress 変換と同じ事前処理）。
-  const normalized = normalizeBoldLabelLines(content)
+  const normalized = convertConsecutiveHeadingsToBullets(normalizeBoldLabelLines(content))
 
   const imageHtml = imageUrl
     ? `<img src="${imageUrl}" style="width:100%;height:auto;margin-bottom:32px;display:block;" alt="" />`
@@ -161,6 +161,11 @@ function formatContent(content: string, imageUrl: string): string {
       /待っているだけでオファーが届くM&Aオファーはこちら\s+https?:\/\/nihon-teikei\.com\/ma-offer/g,
       '<a href="https://nihon-teikei.co.jp/ma-newstandard/" target="_blank" rel="noopener noreferrer" style="color:#0e357f;text-decoration:underline;">新しいM&A ニュースタンダードはこちら</a>'
     )
+
+  // 連続見出しタグの HTML 後処理（numbered heading 連続などのガード）
+  bodyHtml = bodyHtml
+    .replace(/(<\/h3>)([\s\n]*)(<h3)/g, '$1$2<p style="margin:0 0 0.8em;"></p>\n$3')
+    .replace(/(<\/h2>)([\s\n]*)(<h2)/g, '$1$2<p style="margin:0 0 1.2em;"></p>\n$3')
 
   bodyHtml = insertCtaBannersForPreview(bodyHtml)
 
