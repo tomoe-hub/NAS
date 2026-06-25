@@ -26,6 +26,50 @@ import { normalizeWordPressTagsFromRequest } from './wordpressTags'
 import { decodeHtmlEntities } from './wpTagList'
 import { normalizeBoldLabelLines, convertConsecutiveHeadingsToBullets } from './contentFormat'
 
+/** Vercel 環境変数から WordPress 接続設定を正規化して返す */
+export interface WordPressConfig {
+  wpUrl: string
+  username: string
+  appPassword: string
+  credentials: string
+  authorization: string
+}
+
+export function getWordPressConfig(): WordPressConfig | null {
+  const rawUrl = process.env.WORDPRESS_URL?.trim()
+  const username = process.env.WORDPRESS_USERNAME?.trim()
+  // WordPress はスペースなし24文字。Vercel 貼り付け時の途中スペースも除去する
+  const appPassword = (process.env.WORDPRESS_APP_PASSWORD ?? '').trim().replace(/\s/g, '')
+
+  if (!rawUrl || !username || !appPassword) return null
+
+  const wpUrl = rawUrl.replace(/\/$/, '')
+  const credentials = Buffer.from(`${username}:${appPassword}`, 'utf8').toString('base64')
+
+  return {
+    wpUrl,
+    username,
+    appPassword,
+    credentials,
+    authorization: `Basic ${credentials}`,
+  }
+}
+
+/** WordPress REST API のエラーレスポンスを人間が読める文字列に変換 */
+export function formatWordPressApiError(
+  status: number,
+  errorData: unknown,
+  fallback = 'Forbidden',
+): string {
+  const data = errorData as { code?: string; message?: string }
+  const code = data?.code?.trim()
+  const message = data?.message?.trim()
+  if (code && message) return `WordPress API error: ${status} - ${code}: ${message}`
+  if (code) return `WordPress API error: ${status} - ${code}`
+  if (message) return `WordPress API error: ${status} - ${message}`
+  return `WordPress API error: ${status} - ${fallback}`
+}
+
 /** 監修者画像のデフォルト（WordPressメディアライブラリ・左の丸画像用） */
 const DEFAULT_SUPERVISOR_IMAGE_URL = 'https://nihon-teikei.co.jp/wp-content/uploads/2026/03/3159097ae625791c1a400e6900330153.png'
 
@@ -940,25 +984,21 @@ export async function postToWordPress(
   status: 'draft' | 'publish' | 'future' = 'draft',
   options?: { scheduledDate?: string }
 ): Promise<WordPressPostResult> {
-  const wpUrl = process.env.WORDPRESS_URL?.trim();
-  const username = process.env.WORDPRESS_USERNAME?.trim();
-  const appPassword = process.env.WORDPRESS_APP_PASSWORD?.trim();
-
-  if (!wpUrl || !username || !appPassword) {
+  const config = getWordPressConfig();
+  if (!config) {
     const missing = [
-      !wpUrl && 'WORDPRESS_URL',
-      !username && 'WORDPRESS_USERNAME',
-      !appPassword && 'WORDPRESS_APP_PASSWORD',
+      !process.env.WORDPRESS_URL?.trim() && 'WORDPRESS_URL',
+      !process.env.WORDPRESS_USERNAME?.trim() && 'WORDPRESS_USERNAME',
+      !(process.env.WORDPRESS_APP_PASSWORD ?? '').trim() && 'WORDPRESS_APP_PASSWORD',
     ].filter(Boolean);
     throw new Error(`WordPressの環境変数が設定されていません: ${missing.join(', ')}`);
   }
 
+  const { wpUrl, credentials } = config;
+
   const rawCategoryId = process.env.WORDPRESS_CATEGORY_ID?.trim() || '115';
   const categoryId = parseInt(rawCategoryId, 10);
   const safeCategoryId = Number.isNaN(categoryId) || categoryId < 1 ? 115 : categoryId;
-
-  // Basic認証のトークンを生成
-  const credentials = Buffer.from(`${username}:${appPassword}`).toString('base64');
 
   // アイキャッチ画像を先にアップロード（本文最上部の画像URL取得のため）
   let mediaId: number | undefined;
@@ -992,7 +1032,6 @@ export async function postToWordPress(
   }
 
   const requestUrl = `${wpUrl}/wp-json/wp/v2/posts`;
-  const authHeaderValue = `Basic ***`; // ログ用（パスワードは出さない）
 
   try {
     const response = await fetch(requestUrl, {
@@ -1016,18 +1055,16 @@ export async function postToWordPress(
 
     if (!response.ok) {
       const errorData = await response.json().catch(() => ({}));
-      const message =
-        (errorData as { message?: string }).message ||
-        (errorData as { code?: string }).code ||
-        response.statusText;
+      const message = formatWordPressApiError(response.status, errorData, response.statusText);
 
       // 403 等の原因特定用：詳細をコンソールに出力
       console.error('[WordPress 403 デバッグ] リクエストURL:', requestUrl);
       console.error('[WordPress 403 デバッグ] レスポンスステータス:', response.status);
       console.error('[WordPress 403 デバッグ] レスポンスボディ:', JSON.stringify(errorData, null, 2));
-      console.error('[WordPress 403 デバッグ] 認証ヘッダー:', authHeaderValue);
+      console.error('[WordPress 403 デバッグ] ユーザー名:', config.username);
+      console.error('[WordPress 403 デバッグ] パスワード文字数:', config.appPassword.length);
 
-      throw new Error(`WordPress API error: ${response.status} - ${message}`);
+      throw new Error(message);
     }
 
     const data = await response.json() as {
@@ -1056,7 +1093,7 @@ export async function postToWordPress(
     }
     // ネットワークエラー等
     console.error('[WordPress デバッグ] リクエストURL:', requestUrl);
-    console.error('[WordPress デバッグ] 認証ヘッダー:', authHeaderValue);
+    console.error('[WordPress デバッグ] ユーザー名:', config.username);
     console.error('[WordPress デバッグ] エラー:', err);
     throw err;
   }

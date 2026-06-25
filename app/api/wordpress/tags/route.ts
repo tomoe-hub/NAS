@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { decodeHtmlEntities, type WpTagListItem } from '@/lib/wpTagList'
+import { formatWordPressApiError, getWordPressConfig } from '@/lib/wordpress'
 
 export const dynamic = 'force-dynamic'
 
@@ -10,11 +11,9 @@ export type { WpTagListItem }
  * WordPress のタグを使用回数降順で取得（管理画面の「よく使われているタグ」に相当）。
  */
 export async function GET(request: NextRequest) {
-  const wpUrl = process.env.WORDPRESS_URL?.trim()
-  const username = process.env.WORDPRESS_USERNAME?.trim()
-  const appPassword = process.env.WORDPRESS_APP_PASSWORD?.trim()
+  const config = getWordPressConfig()
 
-  if (!wpUrl || !username || !appPassword) {
+  if (!config) {
     return NextResponse.json(
       {
         error: 'WordPress の環境変数（WORDPRESS_URL 等）が設定されていません',
@@ -28,26 +27,24 @@ export async function GET(request: NextRequest) {
   const perPage = Math.min(100, Math.max(1, parseInt(searchParams.get('per_page') || '100', 10) || 100))
   const page = Math.max(1, parseInt(searchParams.get('page') || '1', 10) || 1)
 
-  const base = wpUrl.replace(/\/$/, '')
-  const url = `${base}/wp-json/wp/v2/tags?per_page=${perPage}&page=${page}&orderby=count&order=desc&_fields=id,name,slug,count`
-
-  const credentials = Buffer.from(`${username}:${appPassword}`, 'utf8').toString('base64')
+  const url = `${config.wpUrl}/wp-json/wp/v2/tags?per_page=${perPage}&page=${page}&orderby=count&order=desc&_fields=id,name,slug,count`
 
   try {
     const res = await fetch(url, {
       headers: {
-        Authorization: `Basic ${credentials}`,
+        Authorization: config.authorization,
         Accept: 'application/json',
       },
       cache: 'no-store',
     })
 
     if (!res.ok) {
-      const errText = await res.text().catch(() => '')
-      console.error('[wp/tags]', res.status, errText.slice(0, 500))
+      const errData = await res.json().catch(() => ({}))
+      const errText = JSON.stringify(errData).slice(0, 500)
+      console.error('[wp/tags]', res.status, errText)
       return NextResponse.json(
         {
-          error: `WordPress タグ一覧の取得に失敗しました (${res.status})`,
+          error: formatWordPressApiError(res.status, errData, `タグ一覧の取得に失敗 (${res.status})`),
           tags: [] as WpTagListItem[],
         },
         { status: 502 }
