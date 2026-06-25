@@ -70,13 +70,13 @@ function parseRetryDelaySeconds(detail: string): number | null {
 }
 
 /**
- * 指定プロンプトで generateContent を実行する。
+ * Gemini の候補モデルを順に試して generateContent を実行する。
  * - 429（quota）・503（high demand）時は短い待機で同一モデルを再試行し、
  *   それでもダメなら次モデルへフォールバック。
  * - 404（モデル不存在・generateContent 非対応）は待機せず即時次モデルへ。
- * - Gemini 側の全候補が失敗した場合は Claude（Bedrock / Sonnet 4.5）へフォールバックする。
+ * - 全候補が失敗した場合は最後のエラー詳細を含めて throw する。
  */
-async function generateContentWithFallback(apiKey: string, prompt: string): Promise<string> {
+async function tryGeminiModels(apiKey: string, prompt: string): Promise<string> {
   const genAI = new GoogleGenerativeAI(apiKey)
   const maxRetriesPerModel = 2
   // Vercel の関数タイムアウト(504)回避のため、Gemini 側の試行時間に上限を設ける
@@ -90,7 +90,7 @@ async function generateContentWithFallback(apiKey: string, prompt: string): Prom
   for (const modelId of modelIds) {
     for (let attempt = 0; attempt < maxRetriesPerModel; attempt++) {
       if (Date.now() - startedAt >= totalBudgetMs) {
-        console.warn('[Gemini] 総予算時間を超過したため、Claude フォールバックへ切り替えます')
+        console.warn('[Gemini] 総予算時間を超過したため、次の経路へ切り替えます')
         break
       }
       try {
@@ -124,7 +124,7 @@ async function generateContentWithFallback(apiKey: string, prompt: string): Prom
           /Resource exhausted|503|Service Unavailable|high demand|Overloaded/i.test(combined)
 
         if (!isRetryable) {
-          // 非クォータ系の未分類エラーは Claude フォールバックに回すためループを抜ける
+          // 非クォータ系の未分類エラーはループを抜けて次の経路へ
           break
         }
 
@@ -155,33 +155,66 @@ async function generateContentWithFallback(apiKey: string, prompt: string): Prom
   }
 
   console.error('[Gemini] 全候補モデルで失敗', { models: [...modelIds], lastDetail })
+  const suffix = lastDetail ? ` [Gemini詳細: ${lastDetail}]` : ''
+  throw lastError ?? new Error(`Gemini 生成に失敗しました${suffix}`)
+}
 
-  // Claude (Bedrock) フォールバック
-  if (isClaudeConfigured()) {
+/** Claude（Bedrock）で生成する。未設定なら例外。 */
+async function tryClaude(prompt: string): Promise<string> {
+  if (!isClaudeConfigured()) {
+    throw new Error('Claude（Bedrock）が未設定です（AWS 認証情報を確認してください）')
+  }
+  const claudeText = await generateWithClaude(prompt, {
+    maxTokens: 8000,
+    temperature: 0.7,
+  })
+  console.log(`[Claude] 生成成功（文字数: ${claudeText.length}）`)
+  return claudeText
+}
+
+/**
+ * 記事生成の本体。既定では Claude（Bedrock / Sonnet 4.6）を主エンジンとして使い、
+ * 失敗時に Gemini へフォールバックする。
+ * 環境変数 AI_PRIMARY=gemini を指定すると旧来の Gemini 優先に戻せる。
+ */
+async function generateContentWithFallback(apiKey: string, prompt: string): Promise<string> {
+  const primary = (process.env.AI_PRIMARY?.trim().toLowerCase() || 'claude')
+
+  if (primary === 'gemini') {
+    // 旧来順序: Gemini → Claude
     try {
-      console.warn('[Gemini→Claude] Gemini 失敗のため Claude (Bedrock / Sonnet 4.5) にフォールバックします')
-      const claudeText = await generateWithClaude(prompt, {
-        maxTokens: 8000,
-        temperature: 0.7,
-      })
-      console.log(`[Claude] フォールバック成功（文字数: ${claudeText.length}）`)
-      return claudeText
-    } catch (claudeErr) {
-      const detail = claudeErr instanceof Error ? claudeErr.message : String(claudeErr)
-      console.error('[Claude] フォールバックも失敗:', detail)
-      const suffix = lastDetail ? ` [Gemini詳細: ${lastDetail}]` : ''
-      throw new Error(
-        `Gemini・Claude 両方の生成に失敗しました。Claude詳細: ${detail}${suffix}`,
-      )
+      return await tryGeminiModels(apiKey, prompt)
+    } catch (geminiErr) {
+      const geminiDetail = geminiErr instanceof Error ? geminiErr.message : String(geminiErr)
+      if (!isClaudeConfigured()) {
+        throw new Error(
+          'Gemini API が一時的に利用できません（サーバー混雑またはクォータ超過）。' +
+            `しばらく待ってから再度お試しください。 [詳細: ${geminiDetail}]`,
+        )
+      }
+      try {
+        console.warn('[Gemini→Claude] Gemini 失敗のため Claude にフォールバックします')
+        return await tryClaude(prompt)
+      } catch (claudeErr) {
+        const claudeDetail = claudeErr instanceof Error ? claudeErr.message : String(claudeErr)
+        throw new Error(`Gemini・Claude 両方の生成に失敗しました。Claude詳細: ${claudeDetail} [Gemini詳細: ${geminiDetail}]`)
+      }
     }
   }
 
-  const suffix = lastDetail ? ` [詳細: ${lastDetail}]` : ''
-  throw new Error(
-    'Gemini API が一時的に利用できません（サーバー混雑またはクォータ超過）。' +
-      'しばらく待ってから再度お試しください。' +
-      suffix
-  )
+  // 既定順序: Claude（主）→ Gemini（予備）
+  try {
+    return await tryClaude(prompt)
+  } catch (claudeErr) {
+    const claudeDetail = claudeErr instanceof Error ? claudeErr.message : String(claudeErr)
+    console.warn('[Claude→Gemini] Claude 失敗のため Gemini にフォールバックします:', claudeDetail)
+    try {
+      return await tryGeminiModels(apiKey, prompt)
+    } catch (geminiErr) {
+      const geminiDetail = geminiErr instanceof Error ? geminiErr.message : String(geminiErr)
+      throw new Error(`Claude・Gemini 両方の生成に失敗しました。Claude詳細: ${claudeDetail} [Gemini詳細: ${geminiDetail}]`)
+    }
+  }
 }
 
 interface ParsedArticleResult {

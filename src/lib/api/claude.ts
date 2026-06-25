@@ -4,8 +4,8 @@
  * Gemini が 404 / 429 / 503 などで失敗した際、generateContentWithFallback の
  * Claude 側バックエンドとしてこのモジュールを使う。
  *
- * モデル選定（2026 Q2 現在・ユーザー要望に合わせて Sonnet 4.5 優先）:
- *   メイン : anthropic.claude-sonnet-4-5-20250929-v1:0  （高品質・記事品質維持）
+ * モデル選定（2026 Q2 現在・現行アクティブ版 Sonnet 4.6 を主に使用）:
+ *   メイン : anthropic.claude-sonnet-4-6                （現行アクティブ・推論プロファイル経由）
  *   予備   : anthropic.claude-3-5-sonnet-20241022-v2:0  （広く有効化済みの保険）
  *
  * Sonnet 4.x 系は多くの場合クロスリージョン推論プロファイル経由でしか呼べないため、
@@ -18,8 +18,8 @@ import {
   InvokeModelCommand,
 } from '@aws-sdk/client-bedrock-runtime'
 
-const DEFAULT_PRIMARY_MODEL = 'anthropic.claude-3-5-sonnet-20241022-v2:0'
-const DEFAULT_FALLBACK_MODEL = 'anthropic.claude-3-haiku-20240307-v1:0'
+const DEFAULT_PRIMARY_MODEL = 'anthropic.claude-sonnet-4-6'
+const DEFAULT_FALLBACK_MODEL = 'anthropic.claude-3-5-sonnet-20241022-v2:0'
 const DEFAULT_REGION = 'us-west-2'
 /** anthropic InvokeModel の bedrock version（Claude 3+ 系で共通） */
 const ANTHROPIC_BEDROCK_VERSION = 'bedrock-2023-05-31'
