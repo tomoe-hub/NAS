@@ -111,9 +111,17 @@ async function generateContentWithFallback(apiKey: string, prompt: string): Prom
           break
         }
 
+        // 1日クォータ超過（429 Quota Exceeded）は同一モデルで待機しても無意味なため
+        // 即座に次のモデルへスキップする
+        const isQuotaExhausted =
+          /429|quota exceeded|Too Many Requests|RESOURCE_EXHAUSTED|Quota exceeded for metric.*free_tier/i.test(combined)
+        if (isQuotaExhausted) {
+          console.warn(`[Gemini] model=${modelId} クォータ超過のため次のモデルへスキップします`)
+          break
+        }
+
         const isRetryable =
-          /429|quota|Too Many Requests|Resource exhausted|RESOURCE_EXHAUSTED/i.test(combined) ||
-          /503|Service Unavailable|high demand|Overloaded/i.test(combined)
+          /Resource exhausted|503|Service Unavailable|high demand|Overloaded/i.test(combined)
 
         if (!isRetryable) {
           // 非クォータ系の未分類エラーは Claude フォールバックに回すためループを抜ける

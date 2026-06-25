@@ -18,8 +18,8 @@ import {
   InvokeModelCommand,
 } from '@aws-sdk/client-bedrock-runtime'
 
-const DEFAULT_PRIMARY_MODEL = 'anthropic.claude-sonnet-4-5-20250929-v1:0'
-const DEFAULT_FALLBACK_MODEL = 'anthropic.claude-3-5-sonnet-20241022-v2:0'
+const DEFAULT_PRIMARY_MODEL = 'anthropic.claude-3-5-sonnet-20241022-v2:0'
+const DEFAULT_FALLBACK_MODEL = 'anthropic.claude-3-haiku-20240307-v1:0'
 const DEFAULT_REGION = 'us-west-2'
 /** anthropic InvokeModel の bedrock version（Claude 3+ 系で共通） */
 const ANTHROPIC_BEDROCK_VERSION = 'bedrock-2023-05-31'
@@ -126,7 +126,7 @@ function isAccessDeniedOrNotFound(err: unknown): boolean {
     return true
   }
   const msg = e.message ?? ''
-  return /AccessDenied|ResourceNotFound|on-demand throughput isn.?t supported|inference profile|ValidationException/i.test(
+  return /AccessDenied|ResourceNotFound|on-demand throughput isn.?t supported|inference profile|ValidationException|end of its life|has been deprecated|no longer available|ModelNotReadyException/i.test(
     msg,
   )
 }
