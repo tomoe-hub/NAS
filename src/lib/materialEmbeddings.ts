@@ -193,6 +193,76 @@ export async function chunksByIds(ids: string[]): Promise<string> {
 }
 
 /**
+ * 記事生成時に呼び出す軽量な自動ベクトル化。
+ * - インデックスにないファイルだけを対象に embedText を実行する。
+ * - 既処理のファイルはスキップ（force なし固定）。
+ * - ファイルが多い場合の Vercel 関数タイムアウトを避けるため
+ *   1 回の呼び出しで処理するファイル数を MAX_AUTO_FILES に制限する。
+ * - エラーは握りつぶして警告のみ（生成フローを止めない）。
+ */
+const MAX_AUTO_FILES = 5
+
+export async function autoEmbedNewMaterials(): Promise<void> {
+  try {
+    const apiKey = process.env.GEMINI_API_KEY?.trim()
+    if (!apiKey) return // Embedding API がなければスキップ
+
+    const prefix = getDraftMaterialsPrefix()
+    const objects = await listS3Objects(prefix)
+    const keys = objects.map(o => o.key).filter(k => isDraftMaterialKey(k, prefix))
+    if (keys.length === 0) return
+
+    const index = await loadIndex()
+
+    // インデックスに存在しないファイルだけ抽出
+    const newKeys = keys.filter(
+      k => Object.keys(index).filter(id => id.startsWith(`${k}::`)).length === 0
+    )
+    if (newKeys.length === 0) return
+
+    const targets = newKeys.slice(0, MAX_AUTO_FILES)
+    console.log(`[autoEmbed] 新規ファイル ${newKeys.length} 件検出、最大 ${MAX_AUTO_FILES} 件処理します`)
+
+    let added = 0
+    for (const s3Key of targets) {
+      try {
+        const raw = await getS3ObjectAsText(s3Key)
+        if (!raw || !raw.content.trim()) continue
+
+        const chunks = chunkText(raw.content)
+        const isCase = isCaseFile(s3Key)
+        const sourceName = s3Key.split('/').pop() ?? s3Key
+
+        for (let i = 0; i < chunks.length; i++) {
+          const id = `${s3Key}::${i}`
+          const vector = await embedText(chunks[i]!)
+          index[id] = {
+            id,
+            text: chunks[i]!,
+            source: sourceName,
+            s3Key,
+            type: isCase ? 'case' : 'general',
+            vector,
+            indexedAt: new Date().toISOString(),
+          }
+          added++
+        }
+        console.log(`[autoEmbed] ${sourceName} → ${chunks.length} チャンク追加`)
+      } catch (e) {
+        console.warn(`[autoEmbed] スキップ（${s3Key}）:`, e)
+      }
+    }
+
+    if (added > 0) {
+      await saveIndex(index)
+      console.log(`[autoEmbed] インデックス保存完了 (${added} チャンク追加)`)
+    }
+  } catch (e) {
+    console.warn('[autoEmbed] 自動ベクトル化をスキップ:', e)
+  }
+}
+
+/**
  * materials_for_articles/ 下の全ファイルをチャンク化・ベクトル化してインデックスに upsert する。
  * 既にインデックス済みのファイルはスキップ（force=true で強制再生成）。
  * 返却: { done, skipped, failed, chunksAdded }

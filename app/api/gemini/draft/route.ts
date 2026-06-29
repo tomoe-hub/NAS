@@ -10,6 +10,7 @@ import { embedText, findSimilarArticles } from '@/lib/articleEmbeddings'
 import {
   findRelevantMaterialChunks,
   buildMaterialContextFromChunks,
+  autoEmbedNewMaterials,
 } from '@/lib/materialEmbeddings'
 import { findKeywordInLatestDataset, buildCompetitorContext } from '@/lib/ahrefsLoader'
 
@@ -52,6 +53,11 @@ export async function POST(request: NextRequest) {
     // 資料コンテキスト: まず資料RAG（インデックスあり）を試み、
     // なければ従来のランダムウィンドウ方式にフォールバック
     // ────────────────────────────────────────────────────────
+
+    // S3 に新しい資料が追加されていれば生成前に自動でベクトル化する。
+    // 既処理ファイルはスキップされるため、ほぼオーバーヘッドなし。
+    await autoEmbedNewMaterials()
+
     let dataContext = ''
     let binding: DraftMaterialBinding | null = null
     let ragChunkIds: string[] | undefined
