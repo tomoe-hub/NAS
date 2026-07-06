@@ -4,7 +4,6 @@ import { useState, useEffect, useCallback } from 'react'
 import {
   Users,
   RefreshCw,
-  Sparkles,
   AlertTriangle,
   Map,
   Target,
@@ -163,10 +162,13 @@ export default function PersonasPage() {
           type="button"
           onClick={handleGenerate}
           disabled={loading || generating}
-          className="inline-flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-bold text-white transition-opacity hover:opacity-90 disabled:opacity-50 disabled:cursor-not-allowed"
-          style={{ backgroundColor: 'var(--primary, #1267F2)' }}
+          className="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl text-sm font-bold text-white transition-all hover:brightness-110 hover:-translate-y-px active:translate-y-0 disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:translate-y-0"
+          style={{
+            background: 'linear-gradient(160deg, #3d8bff 0%, #1267F2 45%, #0a4bc4 100%)',
+            boxShadow: '0 4px 14px rgba(18,103,242,0.4), inset 0 1px 0 rgba(255,255,255,0.35), inset 0 -2px 0 rgba(0,0,0,0.18)',
+          }}
         >
-          {generating ? <RefreshCw size={15} className="animate-spin" /> : <Sparkles size={15} />}
+          {generating && <RefreshCw size={15} className="animate-spin" />}
           {generating ? '生成中...（3〜5分）' : doc ? 'ペルソナを再生成' : 'ペルソナを生成'}
         </button>
       </div>

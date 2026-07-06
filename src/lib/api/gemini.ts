@@ -217,15 +217,6 @@ async function generateContentWithFallback(apiKey: string, prompt: string): Prom
   }
 }
 
-/**
- * 汎用テキスト生成（Claude主・Gemini予備）。
- * 記事生成以外の用途（仮説ペルソナ生成など）から利用する。
- */
-export async function generateTextWithFallback(prompt: string): Promise<string> {
-  const apiKey = process.env.GEMINI_API_KEY ?? ''
-  return generateContentWithFallback(apiKey, prompt)
-}
-
 interface ParsedArticleResult {
   title: string
   content: string

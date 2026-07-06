@@ -12,7 +12,6 @@
  */
 
 import { generateWithClaude } from '@/lib/api/claude'
-import { generateTextWithFallback } from '@/lib/api/gemini'
 import { getS3ObjectAsText, putS3Object } from '@/lib/s3Reference'
 import { loadRecentDatasets } from '@/lib/ahrefsLoader'
 import { fetchInterviewPosts } from '@/lib/wpInterviews'
@@ -192,6 +191,7 @@ ${kwLines || '（KWデータなし）'}
 6. overallInsights には、3ペルソナを横断して「どのフェーズ×チャネルに注力すべきか」の戦略示唆を4〜6個書いてください。
 7. caveats には、このペルソナの限界（成約者のみのデータで失注者視点がない＝生存者バイアス、n=${input.interviews.length}件と少数、など）を明記してください。
 8. 社名・個人名など特定可能な固有名詞はペルソナに含めないでください（仮名を使うこと）。
+9. 出力が長くなりすぎないよう、各フィールドは簡潔に書いてください（journey の各セルは80字以内、配列項目は各60字以内、goals/pains などの配列は3〜4個まで）。
 
 # 出力形式
 
@@ -268,19 +268,30 @@ export async function generatePersonaDocument(): Promise<PersonaDocument> {
     keywords,
   })
 
-  let raw: string
-  try {
-    raw = await generateWithClaude(prompt, { maxTokens: 16000, temperature: 0.5 })
-  } catch (e) {
-    console.warn('[Persona] Claude失敗、フォールバックで再試行:', e)
-    raw = await generateTextWithFallback(prompt)
-  }
-
-  // 3. パース・検証
-  const parsed = JSON.parse(extractJson(raw)) as {
+  // Gemini（無料API）はクォータ・品質が安定しないため使わず Claude（Bedrock）専用。
+  // JSONが途中で切れる事故を防ぐため出力上限を大きめに取り、パース失敗時は1回だけ再試行する。
+  let parsed: {
     personas?: HypothesisPersona[]
     overallInsights?: string[]
     caveats?: string[]
+  } | null = null
+
+  for (let attempt = 1; attempt <= 2; attempt++) {
+    const raw = await generateWithClaude(prompt, { maxTokens: 32000, temperature: 0.5 })
+    try {
+      parsed = JSON.parse(extractJson(raw))
+      break
+    } catch (e) {
+      console.warn(`[Persona] JSONパース失敗（試行${attempt}/2、出力${raw.length}文字）:`, e)
+      if (attempt === 2) {
+        throw new Error('AIの出力を解析できませんでした。もう一度「ペルソナを生成」を押してください。')
+      }
+    }
+  }
+
+  // 3. 検証
+  if (!parsed) {
+    throw new Error('AIの出力を解析できませんでした。もう一度「ペルソナを生成」を押してください。')
   }
   if (!Array.isArray(parsed.personas) || parsed.personas.length === 0) {
     throw new Error('AIの出力にペルソナが含まれていませんでした')
