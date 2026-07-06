@@ -432,7 +432,7 @@ export default function PersonasPage() {
                               <div className="rounded p-1.5" style={{ background: 'rgba(230,126,34,0.06)' }}>
                                 <p className="font-bold mb-0.5 inline-flex items-center gap-1" style={{ color: '#c2620c' }}>
                                   <AlertTriangle size={10} />
-                                  離脱リスク（推測）
+                                  離脱リスク
                                 </p>
                                 <p className="leading-relaxed" style={{ color: 'var(--text-muted)' }}>{stage.barriers}</p>
                               </div>
@@ -560,23 +560,6 @@ export default function PersonasPage() {
             </div>
           )}
 
-          {/* ── 注意点 ─────────────────────────── */}
-          {doc.caveats.length > 0 && (
-            <div
-              className="rounded-[10px] p-4 flex items-start gap-3"
-              style={{ background: 'rgba(230,126,34,0.05)', border: '1px solid rgba(230,126,34,0.25)' }}
-            >
-              <AlertTriangle size={16} className="flex-shrink-0 mt-0.5" style={{ color: '#c2620c' }} />
-              <div>
-                <p className="text-xs font-bold mb-1.5" style={{ color: '#9a4d0a' }}>このペルソナの限界（仮説として扱ってください）</p>
-                <ul className="text-xs leading-relaxed space-y-1" style={{ color: 'var(--text-muted)' }}>
-                  {doc.caveats.map((c, i) => (
-                    <li key={i}>・{c}</li>
-                  ))}
-                </ul>
-              </div>
-            </div>
-          )}
         </>
       )}
     </div>
