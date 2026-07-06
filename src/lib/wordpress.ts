@@ -670,9 +670,8 @@ function buildFaqAccordionHtml(faqs: Array<{ question: string; answer: string }>
       const answerHtml = faq.answer.replace(/\*\*/g, '').replace(/\n/g, '<br>');
       return `
 <details class="nts-faq-item" style="border:1px solid #E2E8F0;border-radius:12px;padding:12px 16px;background:#FFFFFF;">
-  <summary style="list-style:none;cursor:pointer;font-weight:700;color:#1A1A2E;display:flex;align-items:center;justify-content:space-between;outline:none;">
+  <summary style="list-style:none;cursor:pointer;font-weight:700;color:#1A1A2E;display:flex;align-items:center;outline:none;">
     <span>${question}</span>
-    <span style="margin-left:12px;font-size:18px;line-height:1;color:#94A3B8;">＋</span>
   </summary>
   <div style="margin-top:10px;font-size:14px;color:#475569;line-height:1.8;">
     ${answerHtml}
