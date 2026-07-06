@@ -168,7 +168,7 @@ export default function NoticePage() {
             <ol className="text-xs leading-relaxed space-y-1.5 list-decimal list-inside" style={{ color: 'var(--text-muted)' }}>
               <li>公開日の<strong>前日 朝6時ごろ</strong>にキーワードを自動選定</li>
               <li>一次執筆（S3資料RAG・過去記事の重複回避・競合データ参照）</li>
-              <li>AI推敲 → スラッグ生成 → アイキャッチ画像を自動生成</li>
+              <li>AI推敲 → スラッグ生成 → アイキャッチを画像ライブラリから自動選定</li>
               <li>WordPressに<strong>翌日9:00公開の予約投稿</strong>として登録</li>
               <li>公開まで丸1日、WP管理画面の予約一覧で内容を確認・修正可能</li>
             </ol>
@@ -180,6 +180,7 @@ export default function NoticePage() {
               <li>・同一KWで書く場合も過去記事と<strong>内容が被らない</strong>よう自動制御</li>
               <li>・自社ブランド系KW（日本提携支援 等）は対象外</li>
               <li>・タグは既存WPタグから自動付与（手薄枠は該当タグを付与）</li>
+              <li>・アイキャッチは<strong>画像ページの画像からランダム選定</strong>（直前の投稿と同じ画像・同じ週内での再使用は禁止）</li>
               <li>・生成済み記事は「保存済み記事一覧」にも自動保存</li>
             </ul>
           </div>

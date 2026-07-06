@@ -23,6 +23,7 @@ import { generateDraftArticle } from '@/lib/draftGeneration'
 import { refineArticleWithGemini, generateSlugFromGemini } from '@/lib/api/gemini'
 import { materializeBoundMaterialsForPrompt } from '@/lib/draftMaterialsContext'
 import { generateArticleEyecatch } from '@/lib/articleImage'
+import { pickAutoArticleImage } from '@/lib/autoImagePicker'
 import { postToWordPress, getWordPressConfig } from '@/lib/wordpress'
 import { saveArticleToS3 } from '@/lib/articleServerStorage'
 import { upsertArticleEmbedding } from '@/lib/articleEmbeddings'
@@ -178,15 +179,30 @@ export async function GET(request: NextRequest) {
     const finalContent = refinedContent
     const slug = await generateSlugFromGemini(finalTitle, selection.keyword, finalContent)
 
-    // ── 6. アイキャッチ生成（失敗しても投稿は続行） ─────────
+    // ── 6. アイキャッチ選定（画像ライブラリからランダム） ────
+    // ルール: 直前の投稿と同じ画像は禁止・同一週（月〜日）内の再使用も禁止。
+    // ライブラリが空の場合のみAI生成にフォールバック。失敗しても投稿は続行。
     let imageBase64: string | undefined
     let imageMimeType: string | undefined
+    let imageId: string | undefined
+    let articleImageUrl = ''
     try {
-      const eyecatch = await generateArticleEyecatch(finalTitle, finalContent, selection.keyword)
-      imageBase64 = eyecatch.imageBase64
-      imageMimeType = eyecatch.mimeType
+      const picked = await pickAutoArticleImage(publishDate, log)
+      if (picked) {
+        imageBase64 = picked.imageBase64
+        imageMimeType = picked.mimeType
+        imageId = picked.id
+        articleImageUrl = picked.appUrl
+        console.log(`[AutoArticle] 画像ライブラリから選定: ${picked.id}`)
+      } else {
+        console.warn('[AutoArticle] 画像ライブラリが空のためAI生成にフォールバック')
+        const eyecatch = await generateArticleEyecatch(finalTitle, finalContent, selection.keyword)
+        imageBase64 = eyecatch.imageBase64
+        imageMimeType = eyecatch.mimeType
+        articleImageUrl = `data:${eyecatch.mimeType};base64,${eyecatch.imageBase64}`
+      }
     } catch (e) {
-      console.warn('[AutoArticle] アイキャッチ生成に失敗（画像なしで投稿続行）:', e)
+      console.warn('[AutoArticle] アイキャッチ選定に失敗（画像なしで投稿続行）:', e)
     }
 
     // ── 7. タグ決定 ──────────────────────────────────────
@@ -222,7 +238,7 @@ export async function GET(request: NextRequest) {
       targetKeyword: selection.keyword,
       originalContent: draft.content,
       refinedContent: finalContent,
-      imageUrl: imageBase64 ? `data:${imageMimeType};base64,${imageBase64}` : '',
+      imageUrl: articleImageUrl,
       wordpressUrl: wpResult.link,
       status: 'published',
       createdAt: new Date().toISOString(),
@@ -254,6 +270,7 @@ export async function GET(request: NextRequest) {
       articleId,
       wpPostId: wpResult.id,
       wpUrl: wpResult.link,
+      imageId,
       status: 'scheduled',
       createdAt: new Date().toISOString(),
     })
@@ -270,6 +287,7 @@ export async function GET(request: NextRequest) {
       wpUrl: wpResult.link,
       editUrl: wpResult.editLink,
       hasImage: Boolean(imageBase64),
+      imageId: imageId ?? null,
       tags: wordpressTags,
     })
   } catch (e) {

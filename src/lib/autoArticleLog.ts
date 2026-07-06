@@ -24,6 +24,8 @@ export interface AutoArticleLogEntry {
   articleId?: string
   wpPostId?: number
   wpUrl?: string
+  /** 使用したアイキャッチ画像（画像ライブラリのID）。連続・同週の重複防止に使う */
+  imageId?: string
   status: 'scheduled' | 'failed'
   error?: string
   createdAt: string
