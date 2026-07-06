@@ -21,6 +21,16 @@ export async function middleware(request: NextRequest) {
     return NextResponse.next()
   }
 
+  // Vercel Cron からのリクエストは Bearer CRON_SECRET で通す
+  // （ルート側でも同じシークレットを検証する二重チェック構成）
+  const cronSecret = process.env.CRON_SECRET?.trim()
+  if (cronSecret) {
+    const auth = request.headers.get('authorization') ?? ''
+    if (auth === `Bearer ${cronSecret}`) {
+      return NextResponse.next()
+    }
+  }
+
   const secret = process.env.AUTH_SECRET
   if (!secret || secret.length < 16) {
     const loginUrl = new URL(LOGIN_PATH, request.url)

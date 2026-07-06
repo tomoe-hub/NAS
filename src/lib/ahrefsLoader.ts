@@ -123,6 +123,44 @@ function normalizeKw(kw: string): string {
 }
 
 /**
+ * 最新のデータセットを uploadedAt 降順で最大 maxDatasets 件ロードする。
+ * KW自動選定（cron）で全タイプのデータセットを横断分析するために使用。
+ */
+export async function loadRecentDatasets(maxDatasets = 6): Promise<AhrefsDataset[]> {
+  let index = await loadDatasetIndex()
+
+  if (index.length === 0) {
+    const objects = await listS3Objects(`${PREFIX}datasets/`)
+    const datasetKeys = objects
+      .map(o => o.key)
+      .filter(k => k.endsWith('.json'))
+      .sort()
+      .reverse()
+      .slice(0, maxDatasets)
+    const results = await Promise.all(
+      datasetKeys.map(async key => {
+        const obj = await getS3ObjectAsText(key)
+        if (!obj) return null
+        try {
+          return JSON.parse(obj.content) as AhrefsDataset
+        } catch {
+          return null
+        }
+      })
+    )
+    return results.filter((d): d is AhrefsDataset => d !== null)
+  }
+
+  index = [...index].sort((a, b) =>
+    new Date(b.uploadedAt).getTime() - new Date(a.uploadedAt).getTime()
+  )
+  const results = await Promise.all(
+    index.slice(0, maxDatasets).map(meta => loadDataset(meta.id))
+  )
+  return results.filter((d): d is AhrefsDataset => d !== null)
+}
+
+/**
  * 最新データセットから、クエリを部分一致で含むキーワードを検索して返す。
  * 記事分析ページの「手薄カテゴリー → KW候補」提示に使用。
  * ボリューム降順で最大 limit 件。
