@@ -8,8 +8,11 @@ export function formatCreatedDots(iso: string): string {
   return `${d.getFullYear()}.${d.getMonth() + 1}.${d.getDate()}`
 }
 
-export function buildArticleExcerpt(article: SavedArticle): string {
-  const raw = (article.refinedContent || article.originalContent || '').replace(/\s+/g, ' ').trim()
+export function buildArticleExcerpt(article: SavedArticle & { excerpt?: string }): string {
+  // サマリーAPI（本文なし）の場合はサーバー生成の excerpt を使う
+  const raw = (article.refinedContent || article.originalContent || article.excerpt || '')
+    .replace(/\s+/g, ' ')
+    .trim()
   if (raw.length <= ARTICLE_CARD_EXCERPT_MAX) return raw
   return raw.slice(0, ARTICLE_CARD_EXCERPT_MAX).trim() + '…'
 }

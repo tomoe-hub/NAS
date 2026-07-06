@@ -24,7 +24,7 @@ import { refineArticleWithGemini, generateSlugFromGemini } from '@/lib/api/gemin
 import { materializeBoundMaterialsForPrompt } from '@/lib/draftMaterialsContext'
 import { generateArticleEyecatch } from '@/lib/articleImage'
 import { postToWordPress, getWordPressConfig } from '@/lib/wordpress'
-import { putS3Object } from '@/lib/s3Reference'
+import { saveArticleToS3 } from '@/lib/articleServerStorage'
 import { upsertArticleEmbedding } from '@/lib/articleEmbeddings'
 import { decodeHtmlEntities, type WpTagListItem } from '@/lib/wpTagList'
 import {
@@ -234,7 +234,7 @@ export async function GET(request: NextRequest) {
       wordpressTags: wordpressTags.length > 0 ? wordpressTags : undefined,
       wordCount: finalContent.length,
     }
-    const saved = await putS3Object(`articles/${articleId}.json`, JSON.stringify(article))
+    const saved = await saveArticleToS3(article)
     if (!saved) {
       console.error('[AutoArticle] 記事のS3保存に失敗（WP予約投稿は成功済み）')
     } else {

@@ -3,7 +3,13 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { SavedArticle } from '@/lib/types'
-import { getAllArticles, deleteArticle, saveArticle } from '@/lib/articleStorage'
+import {
+  fetchArticleSummaries,
+  readSummariesCache,
+  deleteArticle,
+  saveArticle,
+  getArticleById,
+} from '@/lib/articleStorage'
 import { applyInternalLinksToText } from '@/lib/internalLinks'
 import { setSessionPreviewImage } from '@/lib/sessionPreviewImage'
 import {
@@ -48,7 +54,7 @@ export default function ArticlesPage() {
   const [vectorToast, setVectorToast] = useState<string | null>(null)
 
   const reloadArticles = async () => {
-    const all = await getAllArticles()
+    const all = await fetchArticleSummaries()
     setArticles(all.filter(article => article.status !== 'published'))
   }
 
@@ -76,7 +82,14 @@ export default function ArticlesPage() {
   }
 
   useEffect(() => {
+    // キャッシュがあれば即描画し、裏で最新を再取得（SWRパターン）
+    const cached = readSummariesCache()
+    if (cached) {
+      setArticles(cached.filter(article => article.status !== 'published'))
+      setMounted(true)
+    }
     reloadArticles().then(() => setMounted(true))
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
   useEffect(() => {
@@ -90,8 +103,8 @@ export default function ArticlesPage() {
   }
 
   const handleScheduleChange = async (id: string, date: string) => {
-    const all = await getAllArticles()
-    const article = all.find(a => a.id === id)
+    // フルデータを取得してから保存（サマリーを保存すると本文が消えるため）
+    const article = await getArticleById(id)
     if (article) {
       article.scheduledDate = date
       await saveArticle(article)
@@ -104,7 +117,9 @@ export default function ArticlesPage() {
   }
 
   const handlePreview = useCallback(
-    async (article: SavedArticle) => {
+    async (summary: SavedArticle) => {
+      // 一覧はサマリー（本文なし）のため、プレビュー時にフルデータを取得
+      const article = (await getArticleById(summary.id)) ?? summary
       const content = applyInternalLinksToText(
         article.refinedContent || article.originalContent || '',
         []
@@ -366,7 +381,7 @@ export default function ArticlesPage() {
               {/* Image */}
               <div className="relative aspect-[16/10] overflow-hidden" style={{ background: '#e9f0fa' }}>
                 {article.imageUrl ? (
-                  <img src={article.imageUrl} alt="" className="w-full h-full object-cover" />
+                  <img src={article.imageUrl} alt="" loading="lazy" className="w-full h-full object-cover" />
                 ) : (
                   <div className="w-full h-full flex items-center justify-center">
                     <FileText size={32} style={{ color: '#b0c0d8' }} />

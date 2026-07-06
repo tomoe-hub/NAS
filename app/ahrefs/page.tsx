@@ -12,7 +12,7 @@ import {
   type ScoredKeyword,
   type PriorityLevel,
 } from '@/lib/ahrefsAnalyzer'
-import { getAllArticles } from '@/lib/articleStorage'
+import { fetchArticleSummaries } from '@/lib/articleStorage'
 import {
   buildKeywordWpEntriesByKeyword,
   keywordActionButtonLabel,
@@ -58,14 +58,14 @@ export default function AhrefsPage() {
   const [dateSort, setDateSort] = useState<'desc' | 'asc' | null>(null)
   const [showCount, setShowCount] = useState(PAGE_SIZE)
   const [error, setError] = useState<string | null>(null)
-  const [savedArticles, setSavedArticles] = useState<Awaited<ReturnType<typeof getAllArticles>>>([])
+  const [savedArticles, setSavedArticles] = useState<Awaited<ReturnType<typeof fetchArticleSummaries>>>([])
   const [keywordMemos, setKeywordMemos] = useState<Record<string, string>>({})
   const [apiFetching, setApiFetching] = useState(false)
   const [apiStatus, setApiStatus] = useState<{ configured: boolean; domain: string | null; hasApiKey: boolean } | null>(null)
   const [apiToast, setApiToast] = useState<{ msg: string; isError: boolean } | null>(null)
 
   const refreshSavedArticles = useCallback(async () => {
-    setSavedArticles(await getAllArticles())
+    setSavedArticles(await fetchArticleSummaries())
   }, [])
 
   useEffect(() => {

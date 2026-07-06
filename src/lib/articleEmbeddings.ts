@@ -210,7 +210,7 @@ export async function batchEmbedArticles(limit = 10): Promise<{
     listS3Objects('articles/'),
   ])
 
-  const jsonFiles = objects.filter(o => o.key.endsWith('.json'))
+  const jsonFiles = objects.filter(o => o.key.endsWith('.json') && o.key !== 'articles/summary-index.json')
   const unprocessed: string[] = []
 
   for (const obj of jsonFiles) {

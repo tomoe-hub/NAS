@@ -76,7 +76,7 @@ export async function loadRecentlyPublishedKeywords(): Promise<Set<string>> {
 
   try {
     const objects = await listS3Objects('articles/')
-    const jsonFiles = objects.filter(o => o.key.endsWith('.json'))
+    const jsonFiles = objects.filter(o => o.key.endsWith('.json') && o.key !== 'articles/summary-index.json')
     const results = await Promise.all(jsonFiles.map(o => getS3ObjectAsText(o.key)))
 
     for (const result of results) {

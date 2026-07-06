@@ -3,7 +3,13 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { SavedArticle } from '@/lib/types'
-import { getAllArticles, saveArticle, deleteArticle } from '@/lib/articleStorage'
+import {
+  fetchArticleSummaries,
+  readSummariesCache,
+  saveArticle,
+  deleteArticle,
+  getArticleById,
+} from '@/lib/articleStorage'
 import { applyInternalLinksToText } from '@/lib/internalLinks'
 import { setSessionPreviewImage } from '@/lib/sessionPreviewImage'
 import {
@@ -39,19 +45,28 @@ export default function PublishedArticlesPage() {
   const [confirmTarget, setConfirmTarget] = useState<SavedArticle | null>(null)
 
   const loadArticles = async () => {
-    const all = await getAllArticles()
+    const all = await fetchArticleSummaries()
     setArticles(all.filter(article => article.status === 'published'))
   }
 
   useEffect(() => {
+    // キャッシュがあれば即描画し、裏で最新を再取得（SWRパターン）
+    const cached = readSummariesCache()
+    if (cached) {
+      setArticles(cached.filter(article => article.status === 'published'))
+      setMounted(true)
+    }
     loadArticles().then(() => setMounted(true))
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
   useEffect(() => {
     setVisibleCount(ARTICLE_CARD_PAGE_SIZE)
   }, [articles, searchQuery, sortKey])
 
-  const handleDuplicateToSaved = async (article: SavedArticle) => {
+  const handleDuplicateToSaved = async (summary: SavedArticle) => {
+    // サマリーには本文がないため、複製時はフルデータを取得する
+    const article = (await getArticleById(summary.id)) ?? summary
     const newArticle: SavedArticle = {
       ...article,
       id: `copy-${Date.now()}`,
@@ -78,7 +93,9 @@ export default function PublishedArticlesPage() {
   }
 
   const handlePreview = useCallback(
-    async (article: SavedArticle) => {
+    async (summary: SavedArticle) => {
+      // 一覧はサマリー（本文なし）のため、プレビュー時にフルデータを取得
+      const article = (await getArticleById(summary.id)) ?? summary
       const content = applyInternalLinksToText(
         article.refinedContent || article.originalContent || '',
         []
@@ -245,7 +262,7 @@ export default function PublishedArticlesPage() {
             >
               <div className="relative aspect-[16/10] overflow-hidden" style={{ background: '#e9f0fa' }}>
                 {article.imageUrl ? (
-                  <img src={article.imageUrl} alt="" className="w-full h-full object-cover" />
+                  <img src={article.imageUrl} alt="" loading="lazy" className="w-full h-full object-cover" />
                 ) : (
                   <div className="w-full h-full flex items-center justify-center">
                     <FileText size={32} style={{ color: '#b0c0d8' }} />

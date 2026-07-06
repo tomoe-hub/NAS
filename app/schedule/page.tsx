@@ -3,7 +3,12 @@ import { useEffect, useState, useMemo } from 'react'
 import { useRouter } from 'next/navigation'
 import { SavedArticle } from '@/lib/types'
 import { resolveCanonicalPostSlug } from '@/lib/slugNormalize'
-import { getAllArticles, saveArticle } from '@/lib/articleStorage'
+import {
+  fetchArticleSummaries,
+  readSummariesCache,
+  saveArticle,
+  getArticleById,
+} from '@/lib/articleStorage'
 import {
   ChevronLeft,
   ChevronRight,
@@ -98,21 +103,31 @@ export default function SchedulePage() {
   const [scheduleListThisMonthOnly, setScheduleListThisMonthOnly] = useState(true)
 
   useEffect(() => {
-    getAllArticles().then(async all => {
+    // キャッシュがあれば即描画し、裏で最新を再取得（SWRパターン）
+    const cached = readSummariesCache()
+    if (cached) {
+      setArticles(cached)
+      setMounted(true)
+    }
+    fetchArticleSummaries().then(async all => {
       const toFix = all.filter(a => {
         if (!a.scheduledTime?.trim()) return false
         return snapScheduledTimeToQuarterHour(a.scheduledTime) !== a.scheduledTime.trim()
       })
       if (toFix.length) {
+        // サマリーを直接保存すると本文が消えるため、必ずフルデータを取得してから保存
         await Promise.all(
-          toFix.map(a =>
-            saveArticle({
-              ...a,
-              scheduledTime: snapScheduledTimeToQuarterHour(a.scheduledTime!),
-            })
-          )
+          toFix.map(async s => {
+            const full = await getArticleById(s.id)
+            if (full) {
+              await saveArticle({
+                ...full,
+                scheduledTime: snapScheduledTimeToQuarterHour(full.scheduledTime!),
+              })
+            }
+          })
         )
-        setArticles(await getAllArticles())
+        setArticles(await fetchArticleSummaries())
       } else {
         setArticles(all)
       }
@@ -170,42 +185,41 @@ export default function SchedulePage() {
   while (calendarCells.length % 7 !== 0) calendarCells.push(null)
 
   const handleScheduleChange = async (articleId: string, date: string) => {
-    const all = await getAllArticles()
-    const a = all.find(x => x.id === articleId)
+    const a = await getArticleById(articleId)
     if (a) {
       a.scheduledDate = date
       await saveArticle(a)
-      setArticles(await getAllArticles())
+      setArticles(await fetchArticleSummaries())
     }
   }
 
   const handleTimeChange = async (articleId: string, time: string) => {
     const normalized = snapScheduledTimeToQuarterHour(time)
-    const all = await getAllArticles()
-    const a = all.find(x => x.id === articleId)
+    const a = await getArticleById(articleId)
     if (a) {
       a.scheduledTime = normalized
       await saveArticle(a)
-      setArticles(await getAllArticles())
+      setArticles(await fetchArticleSummaries())
     }
   }
 
   const handleSlugChange = async (articleId: string, newSlug: string) => {
-    const all = await getAllArticles()
-    const a = all.find(x => x.id === articleId)
+    const a = await getArticleById(articleId)
     if (a) {
       a.slug = newSlug
       await saveArticle(a)
-      setArticles(await getAllArticles())
+      setArticles(await fetchArticleSummaries())
     }
   }
 
-  const handleScheduledPublish = async (article: SavedArticle) => {
-    if (!article.scheduledDate || !article.scheduledTime) return
-    setPublishingId(article.id)
+  const handleScheduledPublish = async (summary: SavedArticle) => {
+    if (!summary.scheduledDate || !summary.scheduledTime) return
+    setPublishingId(summary.id)
     setPublishResult(null)
 
     try {
+      // 一覧はサマリー（本文なし）のため、投稿前にフルデータを取得
+      const article = (await getArticleById(summary.id)) ?? summary
       const scheduledDate = `${article.scheduledDate}T${article.scheduledTime}:00`
       const content = article.refinedContent || article.originalContent || ''
 
@@ -227,20 +241,16 @@ export default function SchedulePage() {
       const data = await res.json()
 
       if (res.ok && data.postId) {
-        const all = await getAllArticles()
-        const a = all.find(x => x.id === article.id)
-        if (a) {
-          a.status = 'published'
-          a.wordpressUrl = data.wordpressUrl
-          if (typeof data.status === 'string' && data.status) {
-            a.wordpressPostStatus = data.status
-          }
-          if (typeof data.dateGmt === 'string' && data.dateGmt.trim()) {
-            a.wordpressPublishedAt = data.dateGmt.trim()
-          }
-          await saveArticle(a)
-          setArticles(await getAllArticles())
+        article.status = 'published'
+        article.wordpressUrl = data.wordpressUrl
+        if (typeof data.status === 'string' && data.status) {
+          article.wordpressPostStatus = data.status
         }
+        if (typeof data.dateGmt === 'string' && data.dateGmt.trim()) {
+          article.wordpressPublishedAt = data.dateGmt.trim()
+        }
+        await saveArticle(article)
+        setArticles(await fetchArticleSummaries())
         const dateObj = new Date(scheduledDate)
         const timeStr = `${dateObj.getMonth() + 1}月${dateObj.getDate()}日 ${article.scheduledTime}`
         setPublishResult({ articleId: article.id, success: true, message: `予約投稿しました（${timeStr} 公開予定）` })
@@ -248,7 +258,7 @@ export default function SchedulePage() {
         setPublishResult({ articleId: article.id, success: false, message: data.error || '予約投稿に失敗しました' })
       }
     } catch {
-      setPublishResult({ articleId: article.id, success: false, message: 'ネットワークエラーが発生しました' })
+      setPublishResult({ articleId: summary.id, success: false, message: 'ネットワークエラーが発生しました' })
     } finally {
       setPublishingId(null)
     }
@@ -256,14 +266,13 @@ export default function SchedulePage() {
 
   const handleDeleteConfirmed = async () => {
     if (!deleteTargetId) return
-    const all = await getAllArticles()
-    const target = all.find(x => x.id === deleteTargetId)
+    const target = await getArticleById(deleteTargetId)
     if (target) {
       target.scheduledDate = undefined
       target.scheduledTime = undefined
       await saveArticle(target)
     }
-    setArticles(await getAllArticles())
+    setArticles(await fetchArticleSummaries())
     setDeleteTargetId(null)
   }
 
@@ -621,7 +630,7 @@ export default function SchedulePage() {
                   </div>
                   <div className="flex items-start gap-4">
                     {article.imageUrl ? (
-                      <img src={article.imageUrl} alt="" className="rounded-[8px] object-cover flex-shrink-0" style={{ width: 72, height: 50 }} />
+                      <img src={article.imageUrl} alt="" loading="lazy" className="rounded-[8px] object-cover flex-shrink-0" style={{ width: 72, height: 50 }} />
                     ) : (
                       <div className="rounded-[8px] flex-shrink-0 flex items-center justify-center" style={{ width: 72, height: 50, background: 'rgba(18,103,242,0.06)' }}>
                         <FileText size={18} style={{ color: 'var(--primary)' }} />
