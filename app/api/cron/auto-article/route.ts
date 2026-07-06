@@ -39,6 +39,7 @@ import {
   hasScheduledEntryForDate,
   recentKeywordsFromLog,
 } from '@/lib/autoArticleLog'
+import { loadAutoArticleSettings } from '@/lib/autoArticleSettings'
 import type { SavedArticle } from '@/lib/types'
 
 export const dynamic = 'force-dynamic'
@@ -96,6 +97,12 @@ export async function GET(request: NextRequest) {
 
   if (process.env.AUTO_ARTICLE_DISABLED === '1') {
     return NextResponse.json({ ok: true, skipped: true, reason: 'AUTO_ARTICLE_DISABLED=1' })
+  }
+
+  // 注意書きページのボタンからOFFにされている場合はスキップ
+  const settings = await loadAutoArticleSettings()
+  if (!settings.enabled) {
+    return NextResponse.json({ ok: true, skipped: true, reason: '自動生成が設定でOFFになっています（注意書きページから変更可能）' })
   }
 
   const { searchParams } = new URL(request.url)
