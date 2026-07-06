@@ -14,6 +14,7 @@ import {
   Database,
   ShieldAlert,
   Images,
+  Users,
 } from 'lucide-react'
 import MainContentWidth from './MainContentWidth'
 
@@ -28,6 +29,7 @@ const navItems = [
   { href: '/article-analytics', label: '記事分析',      icon: PieChart },
   { href: '/materials', label: '資料更新',              icon: Database },
   { href: '/images',    label: '画像',                  icon: Images },
+  { href: '/personas',  label: '仮説ペルソナ',          icon: Users },
   { href: '/notice',    label: '注意書き',              icon: ShieldAlert },
 ]
 
