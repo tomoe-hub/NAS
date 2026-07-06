@@ -212,9 +212,10 @@ function EditorContent() {
       }
     }
 
-    // KW分析ダッシュボードからの遷移: kwPrompt / kwTarget
+    // KW分析ダッシュボードからの遷移: kwPrompt / kwTarget / kwAuto
     const kwPrompt = searchParams.get('kwPrompt')
     const kwTarget = searchParams.get('kwTarget')
+    const kwAuto = searchParams.get('kwAuto')
     if (kwPrompt || kwTarget) {
       clearDraftMaterialBindingSession()
       const fresh = { ...initialArticle }
@@ -224,6 +225,10 @@ function EditorContent() {
       setMounted(true)
       // kwPrompt はArticleInputのprompt stateに渡す必要があるため sessionStorage 経由
       if (kwPrompt) sessionStorage.setItem('nas_kw_prompt', kwPrompt)
+      // kwAuto=1 なら遷移直後に自動で一次執筆を開始する
+      if (kwAuto === '1' && kwPrompt && kwTarget) {
+        sessionStorage.setItem('nas_kw_autostart', '1')
+      }
       return
     }
 

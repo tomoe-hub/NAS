@@ -40,6 +40,8 @@ export default function ArticleInput({
   const [showKeywordDropdown, setShowKeywordDropdown] = useState(false)
   const dropdownRef = useRef<HTMLDivElement>(null)
   const keywordDropdownRef = useRef<HTMLDivElement>(null)
+  // KW分析からの遷移時に自動で一次執筆を開始するフラグ（1回だけ発火）
+  const autoStartRef = useRef(false)
 
   const reloadLibraries = useCallback(() => {
     setSavedPrompts(getAllPrompts())
@@ -54,9 +56,23 @@ export default function ArticleInput({
       if (kwPrompt && !prompt) {
         setPrompt(kwPrompt)
         sessionStorage.removeItem('nas_kw_prompt')
+        // kwAuto=1 で遷移してきた場合は、プロンプトセット後に自動で生成を開始
+        const autostart = sessionStorage.getItem('nas_kw_autostart')
+        if (autostart === '1') {
+          sessionStorage.removeItem('nas_kw_autostart')
+          autoStartRef.current = true
+        }
       }
     } catch { /* SSR guard */ }
   }, [reloadLibraries]) // eslint-disable-line react-hooks/exhaustive-deps
+
+  // 自動生成: prompt と targetKeyword が両方セットされた最初のタイミングで1回だけ発火
+  useEffect(() => {
+    if (!autoStartRef.current) return
+    if (!prompt.trim() || !(article.targetKeyword ?? '').trim() || generating) return
+    autoStartRef.current = false
+    void handleGenerate()
+  }, [prompt, article.targetKeyword]) // eslint-disable-line react-hooks/exhaustive-deps
 
   useEffect(() => {
     const onVisible = () => {

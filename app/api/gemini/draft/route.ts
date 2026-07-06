@@ -6,7 +6,7 @@ import {
   resolveDraftS3Keys,
 } from '@/lib/draftMaterialsContext'
 import type { DraftMaterialBinding } from '@/lib/draftMaterialsContext'
-import { embedText, findSimilarArticles } from '@/lib/articleEmbeddings'
+import { embedText, findSimilarArticles, findArticlesByKeyword } from '@/lib/articleEmbeddings'
 import {
   findRelevantMaterialChunks,
   buildMaterialContextFromChunks,
@@ -116,27 +116,55 @@ export async function POST(request: NextRequest) {
 
     // ────────────────────────────────────────────────────────
     // 過去記事 Embedding RAG: 文体参考 + 見出し差別化
+    // 同一KWの過去記事は類似度検索と別枠で必ず拾い、内容重複を確実に防ぐ
     // ────────────────────────────────────────────────────────
     let toneExamples: string | undefined
     let avoidHeadings: string | undefined
-    if (queryVec) {
-      try {
-        const similar = await findSimilarArticles(queryVec, 3)
-        if (similar.length > 0) {
-          toneExamples = similar
-            .map((a, i) => `--- 参考記事${i + 1}：${a.title}${a.keyword ? `（KW: ${a.keyword}）` : ''} ---\n${a.excerpt}`)
-            .join('\n\n')
+    try {
+      const [similar, sameKw] = await Promise.all([
+        queryVec ? findSimilarArticles(queryVec, 3) : Promise.resolve([]),
+        findArticlesByKeyword(targetKeywordStr, 3),
+      ])
 
-          const headingBlocks = similar
-            .filter(a => a.headings.length > 0)
-            .map((a, i) => `参考記事${i + 1}「${a.title}」の見出し:\n${a.headings.map(h => `- ${h}`).join('\n')}`)
-          if (headingBlocks.length > 0) {
-            avoidHeadings = headingBlocks.join('\n\n')
-          }
+      // 類似記事＋同一KW記事をID重複なしで統合（同一KWを先頭に置き優先度を上げる）
+      const seen = new Set<string>()
+      const merged = [...sameKw, ...similar].filter(a => {
+        if (seen.has(a.id)) return false
+        seen.add(a.id)
+        return true
+      })
+
+      if (merged.length > 0) {
+        toneExamples = merged
+          .map((a, i) => `--- 参考記事${i + 1}：${a.title}${a.keyword ? `（KW: ${a.keyword}）` : ''} ---\n${a.excerpt}`)
+          .join('\n\n')
+
+        const sameKwIds = new Set(sameKw.map(a => a.id))
+        const headingBlocks = merged
+          .filter(a => a.headings.length > 0)
+          .map((a, i) => {
+            const label = sameKwIds.has(a.id)
+              ? `【同一KWの過去記事・重複厳禁】「${a.title}」の見出し:`
+              : `参考記事${i + 1}「${a.title}」の見出し:`
+            return `${label}\n${a.headings.map(h => `- ${h}`).join('\n')}`
+          })
+        if (headingBlocks.length > 0) {
+          avoidHeadings = headingBlocks.join('\n\n')
         }
-      } catch (e) {
-        console.warn('[Draft] 類似記事の取得をスキップ（通常生成へフォールバック）:', e)
+
+        // 同一KW記事は本文抜粋も「重複禁止コンテキスト」として明示する
+        if (sameKw.length > 0) {
+          const dupBlock = sameKw
+            .map(a => `【同一KW過去記事「${a.title}」の冒頭】\n${a.excerpt}`)
+            .join('\n\n')
+          avoidHeadings = avoidHeadings
+            ? `${avoidHeadings}\n\n${dupBlock}`
+            : dupBlock
+          console.log(`[Draft] 同一KW過去記事 ${sameKw.length} 件を重複禁止コンテキストに追加`)
+        }
       }
+    } catch (e) {
+      console.warn('[Draft] 類似記事の取得をスキップ（通常生成へフォールバック）:', e)
     }
 
     // ────────────────────────────────────────────────────────

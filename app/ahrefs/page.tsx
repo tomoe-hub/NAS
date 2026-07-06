@@ -413,6 +413,7 @@ ${row.keyword}
     const params = new URLSearchParams({
       kwTarget: row.keyword,
       kwPrompt: generateAutoPrompt(row),
+      kwAuto: '1',
     })
     router.push(`/editor?${params.toString()}`)
   }, [router, generateAutoPrompt])

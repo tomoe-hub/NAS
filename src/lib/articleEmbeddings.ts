@@ -118,6 +118,35 @@ export async function findSimilarArticles(
 }
 
 /**
+ * ターゲットKWが完全一致する過去記事をインデックスから返す（新しい順に最大 limit 件）。
+ * 同一KWでの再生成時に、内容重複を確実に防ぐための別枠検索。
+ * ベクトル類似度は使わないため queryVec 不要。
+ */
+export async function findArticlesByKeyword(
+  keyword: string,
+  limit = 3,
+): Promise<SimilarArticle[]> {
+  const kw = keyword.trim().toLowerCase()
+  if (!kw) return []
+
+  const index = await loadIndex()
+  const matches = Object.entries(index)
+    .filter(([, entry]) => (entry.keyword || '').trim().toLowerCase() === kw)
+    .sort(([, a], [, b]) => (b.embeddedAt || '').localeCompare(a.embeddedAt || ''))
+    .slice(0, limit)
+    .map(([id, entry]) => ({
+      id,
+      title:    entry.title,
+      keyword:  entry.keyword,
+      excerpt:  entry.excerpt,
+      headings: entry.headings ?? [],
+      score:    1,
+    }))
+
+  return matches
+}
+
+/**
  * 記事 1 件の embedding を生成して S3 index に upsert する。
  * 既にベクトル化済みの場合はスキップ（force=true で強制再生成）。
  */
