@@ -123,6 +123,61 @@ function normalizeKw(kw: string): string {
 }
 
 /**
+ * 最新データセットから、クエリを部分一致で含むキーワードを検索して返す。
+ * 記事分析ページの「手薄カテゴリー → KW候補」提示に使用。
+ * ボリューム降順で最大 limit 件。
+ */
+export async function findRelatedKeywords(
+  query: string,
+  limit = 5,
+): Promise<AhrefsKeywordRow[]> {
+  const normalized = normalizeKw(query)
+  if (!normalized) return []
+
+  let index = await loadDatasetIndex()
+  let rows: AhrefsKeywordRow[] = []
+
+  if (index.length === 0) {
+    const objects = await listS3Objects(`${PREFIX}datasets/`)
+    const datasetKeys = objects
+      .map(o => o.key)
+      .filter(k => k.endsWith('.json'))
+      .sort()
+      .reverse()
+    if (datasetKeys.length === 0) return []
+    const obj = await getS3ObjectAsText(datasetKeys[0]!)
+    if (!obj) return []
+    try {
+      rows = (JSON.parse(obj.content) as AhrefsDataset).keywords
+    } catch {
+      return []
+    }
+  } else {
+    index = [...index].sort((a, b) =>
+      new Date(b.uploadedAt).getTime() - new Date(a.uploadedAt).getTime()
+    )
+    // 最新から最大3データセットを統合して検索母数を確保
+    for (const meta of index.slice(0, 3)) {
+      const dataset = await loadDataset(meta.id)
+      if (dataset) rows.push(...dataset.keywords)
+    }
+  }
+
+  // 部分一致で抽出し、キーワード重複を除去してボリューム降順
+  const seen = new Set<string>()
+  return rows
+    .filter(r => normalizeKw(r.keyword).includes(normalized))
+    .filter(r => {
+      const key = normalizeKw(r.keyword)
+      if (seen.has(key)) return false
+      seen.add(key)
+      return true
+    })
+    .sort((a, b) => (b.volume ?? 0) - (a.volume ?? 0))
+    .slice(0, limit)
+}
+
+/**
  * AhrefsKeywordRow から競合分析コンテキスト文字列を生成する。
  * draft/route.ts から呼び出してプロンプトに注入する。
  */

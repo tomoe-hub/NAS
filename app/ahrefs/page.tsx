@@ -21,6 +21,7 @@ import {
 import { ColumnHint } from '@/components/ui/ColumnHint'
 import { Upload, X, Search, TrendingUp, TrendingDown, BarChart3, ChevronDown, ChevronUp, ChevronsUpDown, RefreshCw, Wifi, WifiOff } from 'lucide-react'
 import { loadMemos, saveMemos, migrateLocalStorageToS3 } from '@/lib/keywordMemoStorage'
+import { buildKwPrompt } from '@/lib/kwPromptBuilder'
 
 type TabKey = 'opportunity' | 'organic' | 'trends'
 const PAGE_SIZE = 50
@@ -311,102 +312,18 @@ export default function AhrefsPage() {
   // ----- Auto-prompt generation (NTS) -----
 
   const generateAutoPrompt = useCallback((row: ScoredKeyword): string => {
-    const volStrategy = row.volume > 5000
-      ? '検索ボリュームが非常に大きいキーワードです。包括的かつ網羅的な内容にし、関連キーワードも幅広くカバーしてください。'
-      : row.volume > 1000
-        ? '中程度のボリュームがあります。幅広い検索意図をカバーする構成にしてください。'
-        : row.volume > 300
-          ? 'ニッチな専門性と具体性で上位を狙える領域です。深堀りした実務情報を盛り込んでください。'
-          : '深い専門知識と具体的な事例で差別化してください。ロングテール戦略として有効です。'
-
-    const kdStrategy = row.kd <= 10
-      ? '競合がほぼ不在です。基本を丁寧に押さえれば上位表示が可能です。'
-      : row.kd <= 30
-        ? '独自視点で差別化すれば上位の勝算があります。NTSの実績や事例を活用してください。'
-        : row.kd <= 50
-          ? '実体験・具体的数値での差別化が必要です。NTSの支援事例やデータを積極的に引用してください。'
-          : '高難度KWです。現場知見・独自データで差別化が必須です。NTSならではの独自分析を前面に出してください。'
-
-    const cpcStrategy = row.cpc > 1000
-      ? 'CPCが高く商業的意図が強いKWです。具体的なCTAを設置し、無料相談・資料DLへ誘導してください。'
-      : row.cpc > 300
-        ? '一定の商業的価値があります。サービスページや問い合わせフォームへの自然な誘導を含めてください。'
-        : '情報収集段階のユーザーが多い可能性があります。信頼構築を重視し、まず価値提供に注力してください。'
-
-    let trendNote = ''
-    if (row.trend === 'up') {
-      trendNote = `\n▸ トレンド注記: 検索ボリュームが上昇傾向（+${row.trendPercent}%）です。最新の市場動向・法改正・統計データを積極的に取り入れてください。`
-    } else if (row.trend === 'down') {
-      trendNote = `\n▸ トレンド注記: 検索ボリュームが下降傾向（${row.trendPercent}%）です。「今こそ知っておくべき」等の切り口で再注目を促してください。`
-    }
-
-    const categoryIntents: Record<string, string> = {
-      'M&A全般': '\n・M&Aの基本的な流れ・手数料体系・メリットとリスクを知りたい\n・中小企業のM&A成功事例・失敗事例を知りたい',
-      '事業承継': '\n・後継者不在の解決策を知りたい\n・親族内承継と第三者承継の違い・それぞれのメリットを理解したい\n・事業承継税制の活用方法を知りたい',
-      '企業価値評価': '\n・自社の企業価値を知りたい\n・デューデリジェンスの具体的な進め方・チェックポイントを理解したい\n・バリュエーション手法（DCF、類似企業比較等）の違いを知りたい',
-      'PMI・統合': '\n・M&A後の統合プロセス（PMI）の進め方を知りたい\n・買収後の「磨き上げ」で企業価値を高める方法を知りたい\n・従業員のモチベーション維持・組織文化統合のポイントを知りたい',
-      'アドバイザー・仲介': '\n・M&Aアドバイザーの選び方・比較ポイントを知りたい\n・仲介手数料の相場・料金体系を理解したい\n・信頼できる相談先を見つけたい',
-      '資金調達・補助金': '\n・M&Aに使える補助金・助成金制度を知りたい\n・買収資金の調達方法（LBO、銀行融資等）を理解したい\n・事業再構築補助金の活用事例を知りたい',
-      '中小企業経営': '\n・中小企業の経営改善・収益向上策を知りたい\n・事業計画の策定方法を知りたい\n・経営課題の優先順位付けの方法を知りたい',
-      '法務・税務': '\n・M&Aに関わる法務手続き・契約書のポイントを知りたい\n・M&Aの税務影響・節税策を知りたい\n・株式譲渡と事業譲渡の法的・税務的違いを理解したい',
-    }
-    const extraIntents = categoryIntents[row.detectedCategory] ?? ''
-
     const priorityLabel = row.priority === 3 ? '★★★即攻め' : row.priority === 2 ? '★★有望' : row.priority === 1 ? '★余力' : '対象外'
-
-    return `あなたはM&A・事業承継領域に精通したコンテンツ戦略コンサルタントです。
-以下のキーワードデータに基づき、NTS（日本提携支援）の公式コラムとして、検索流入の獲得とE-E-A-Tの訴求を両立した記事を執筆してください。
-
-■テーマ
-${row.keyword}
-
-■KWデータに基づく執筆方針
-・ターゲットキーワード: ${row.keyword}
-・月間検索ボリューム: ${row.volume.toLocaleString()}
-・KD（Keyword Difficulty）: ${row.kd}
-・CPC: ¥${Math.round(row.cpc).toLocaleString()}
-・カテゴリ: ${row.detectedCategory}
-・優先度: ${priorityLabel}（スコア: ${row.score}）
-
-▸ ボリューム戦略: ${volStrategy}
-▸ KD戦略: ${kdStrategy}
-▸ CPC戦略: ${cpcStrategy}${trendNote}
-
-■検索意図の整理
-このキーワードで検索するユーザーは以下の情報を求めていると想定されます：
-・基本的な概念・定義を理解したい
-・具体的な手順・プロセスを知りたい
-・費用・相場感を把握したい
-・成功事例・失敗事例から学びたい
-・信頼できる専門家に相談したい${extraIntents}
-
-■ターゲット
-・中小企業の経営者・オーナー
-・事業承継を検討中の経営者
-・M&Aを初めて検討する企業の経営層・担当者
-
-■必須条件
-・NTS（日本提携支援）のM&Aアドバイザリーとしての専門知識・実績を反映すること
-・一次執筆時にシステムが読み込む社内資料（S3の日本提携支援向けマテリアル等）を前提に、資料に基づく具体性・独自の現場知を記事に織り込むこと（メタに「資料」「S3」と書かないこと）
-・実務に基づいた具体的なアドバイスを含めること
-・読者が次のアクションを取りやすいよう、相談窓口やサービスページへの誘導を自然に含めること
-・公的機関（中小企業庁、経済産業省等）の統計やガイドラインを適宜引用すること
-
-■トーン・文体（厳守）
-・NTSに言及するときは「私たちは〜」「弊社では〜」「NTSでは〜」と自社視点で書くこと。「NTSは確信している」のように三人称で客体化しない。
-・文末は「〜です」「〜ます」「〜と考えています」のように丁寧語で統一。「〜だろう」「〜であろう」「〜に他ならない」のような評論家調・学術論文調は禁止。
-・「徹底解説する」「完全ガイド」のような煽り表現は使わない。
-
-■キーワード表記（厳守）
-・ターゲットキーワードは本文中に自然な日本語として溶け込ませること。「」（鉤括弧）で囲んで繰り返さない。
-・半角小文字のまま本文に出さない（例: m&a 相談 → M&Aの相談、M&Aについて相談する）。M&Aは常に大文字表記。
-
-■品質要件
-・2500文字以上の読み応えある記事にすること
-・専門用語は必ず平易な説明を併記
-・冗長な表現を避け、実務で役立つ情報密度の高い記事にすること
-・NTSの専門性・信頼性が伝わるトーンで統一
-・記事末尾に「よくある質問（FAQ）」セクション（Q&A形式で5問程度）を含めること`
+    return buildKwPrompt({
+      keyword: row.keyword,
+      volume: row.volume,
+      kd: row.kd,
+      cpc: row.cpc,
+      trend: row.trend,
+      trendPercent: row.trendPercent,
+      detectedCategory: row.detectedCategory,
+      priorityLabel,
+      score: row.score,
+    })
   }, [])
 
   const handleWriteArticle = useCallback((row: ScoredKeyword) => {

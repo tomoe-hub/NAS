@@ -6,9 +6,11 @@
  * 今どのテーマの記事がどれだけ投稿されているかを横棒グラフで可視化する。
  */
 
-import { useState, useEffect, useMemo } from 'react'
-import { RefreshCw, PieChart, Hash, FolderTree, AlertCircle } from 'lucide-react'
+import { useState, useEffect, useMemo, useCallback } from 'react'
+import { useRouter } from 'next/navigation'
+import { RefreshCw, PieChart, Hash, FolderTree, AlertCircle, Lightbulb, FileEdit } from 'lucide-react'
 import type { WpTagListItem } from '@/lib/wpTagList'
+import { buildKwPrompt } from '@/lib/kwPromptBuilder'
 
 interface WpCategoryListItem {
   id: number
@@ -17,6 +19,16 @@ interface WpCategoryListItem {
   count?: number
   parent?: number
 }
+
+interface RelatedKeywordItem {
+  keyword: string
+  volume: number
+  kd: number
+  cpc: number
+}
+
+/** 手薄領域として提示するタグ数（件数昇順の下位N件を常時表示） */
+const WEAK_AREA_COUNT = 5
 
 const BAR_COLORS = [
   '#002C93', '#1D4ED8', '#2563EB', '#3B82F6', '#60A5FA',
@@ -73,10 +85,13 @@ function HorizontalBarChart({
 }
 
 export default function ArticleAnalyticsPage() {
+  const router = useRouter()
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [categories, setCategories] = useState<WpCategoryListItem[]>([])
   const [tags, setTags] = useState<WpTagListItem[]>([])
+  const [relatedKws, setRelatedKws] = useState<Record<string, RelatedKeywordItem[]>>({})
+  const [relatedLoading, setRelatedLoading] = useState(false)
 
   const fetchData = async () => {
     setLoading(true)
@@ -135,6 +150,66 @@ export default function ArticleAnalyticsPage() {
   )
   const activeTags = useMemo(() => tags.filter(t => (t.count ?? 0) > 0).length, [tags])
 
+  // 手薄領域: 使用中タグを件数昇順にソートして下位N件を常時表示（A案）
+  const weakTags = useMemo(
+    () =>
+      tags
+        .filter(t => (t.count ?? 0) > 0)
+        .map(t => ({ name: t.name, count: t.count ?? 0 }))
+        .sort((a, b) => a.count - b.count || a.name.localeCompare(b.name, 'ja'))
+        .slice(0, WEAK_AREA_COUNT),
+    [tags]
+  )
+
+  // 手薄タグごとに Ahrefs から関連KW候補を取得
+  useEffect(() => {
+    if (weakTags.length === 0) return
+    let cancelled = false
+    const run = async () => {
+      setRelatedLoading(true)
+      try {
+        const results = await Promise.all(
+          weakTags.map(async t => {
+            try {
+              const res = await fetch(`/api/ahrefs/related?q=${encodeURIComponent(t.name)}&limit=3`, { cache: 'no-store' })
+              const data = await res.json()
+              return [t.name, Array.isArray(data.keywords) ? data.keywords as RelatedKeywordItem[] : []] as const
+            } catch {
+              return [t.name, []] as const
+            }
+          })
+        )
+        if (!cancelled) {
+          setRelatedKws(Object.fromEntries(results))
+        }
+      } finally {
+        if (!cancelled) setRelatedLoading(false)
+      }
+    }
+    void run()
+    return () => { cancelled = true }
+  }, [weakTags])
+
+  // 記事作成: 既存の kwAuto=1 自動生成フローへ遷移
+  const handleWriteArticle = useCallback(
+    (keyword: string, tagName: string, articleCount: number, kwData?: RelatedKeywordItem) => {
+      const prompt = buildKwPrompt({
+        keyword,
+        volume: kwData?.volume,
+        kd: kwData?.kd,
+        cpc: kwData?.cpc,
+        gap: { tagName, articleCount },
+      })
+      const params = new URLSearchParams({
+        kwTarget: keyword,
+        kwPrompt: prompt,
+        kwAuto: '1',
+      })
+      router.push(`/editor?${params.toString()}`)
+    },
+    [router]
+  )
+
   return (
     <div className="w-full max-w-5xl py-8">
       <div className="flex items-center justify-between mb-1">
@@ -187,6 +262,85 @@ export default function ArticleAnalyticsPage() {
             <span className="text-sm font-semibold text-[#94A3B8] ml-1">個</span>
           </p>
         </div>
+      </div>
+
+      {/* 手薄領域と記事作成 */}
+      <div className="rounded-xl border border-[#E2E8F0] bg-white p-6 mb-6">
+        <h2 className="text-base font-bold text-[#1A1A2E] mb-1 flex items-center gap-2">
+          <Lightbulb size={18} className="text-[#E67E22]" />
+          手薄領域と記事作成
+        </h2>
+        <p className="text-xs text-[#94A3B8] mb-5">
+          記事数が少ないタグ領域（下位{WEAK_AREA_COUNT}件）です。KW候補から記事を作成すると、カテゴリー網羅性を強化できます。ボタンを押すと記事作成ページで自動生成が始まります。
+        </p>
+        {loading ? (
+          <p className="text-sm text-[#94A3B8] py-8 text-center">読み込み中...</p>
+        ) : weakTags.length === 0 ? (
+          <p className="text-sm text-[#94A3B8] py-8 text-center">タグデータがありません</p>
+        ) : (
+          <div className="space-y-4">
+            {weakTags.map(t => {
+              const candidates = relatedKws[t.name] ?? []
+              return (
+                <div
+                  key={t.name}
+                  className="rounded-lg border border-[#E2E8F0] bg-[#FAFBFC] px-4 py-3.5"
+                >
+                  <div className="flex items-center justify-between flex-wrap gap-2 mb-2">
+                    <div className="flex items-center gap-2">
+                      <span className="inline-flex items-center px-2 py-0.5 rounded-md text-[11px] font-bold bg-orange-50 text-[#E67E22] border border-orange-200">
+                        {t.count}件のみ
+                      </span>
+                      <span className="text-sm font-bold text-[#1A1A2E]">{t.name}</span>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => handleWriteArticle(t.name, t.name, t.count)}
+                      className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-md text-[12px] font-semibold text-[#002C93] border border-[#002C93] bg-white transition-colors hover:bg-[#002C93] hover:text-white"
+                    >
+                      <FileEdit size={13} />
+                      タグ名で記事作成
+                    </button>
+                  </div>
+
+                  {relatedLoading ? (
+                    <p className="text-xs text-[#94A3B8]">KW候補を検索中...</p>
+                  ) : candidates.length > 0 ? (
+                    <div className="space-y-1.5">
+                      <p className="text-[11px] font-semibold text-[#64748B]">Ahrefsデータからの候補KW:</p>
+                      {candidates.map(c => (
+                        <div
+                          key={c.keyword}
+                          className="flex items-center justify-between flex-wrap gap-2 rounded-md bg-white border border-[#E2E8F0] px-3 py-2"
+                        >
+                          <div className="flex items-center gap-3 min-w-0">
+                            <span className="text-[13px] font-medium text-[#334155] break-all">{c.keyword}</span>
+                            <span className="text-[11px] text-[#94A3B8] tabular-nums flex-shrink-0">
+                              vol {c.volume.toLocaleString()} / KD {c.kd}
+                            </span>
+                          </div>
+                          <button
+                            type="button"
+                            onClick={() => handleWriteArticle(c.keyword, t.name, t.count, c)}
+                            className="inline-flex items-center gap-1 px-2.5 py-1 rounded-md text-[11px] font-semibold text-white transition-opacity hover:opacity-90 flex-shrink-0"
+                            style={{ backgroundColor: '#002C93' }}
+                          >
+                            <FileEdit size={12} />
+                            このKWで記事作成
+                          </button>
+                        </div>
+                      ))}
+                    </div>
+                  ) : (
+                    <p className="text-xs text-[#94A3B8]">
+                      Ahrefsデータに該当KWなし。「タグ名で記事作成」をご利用ください。
+                    </p>
+                  )}
+                </div>
+              )
+            })}
+          </div>
+        )}
       </div>
 
       {/* カテゴリー別グラフ */}
