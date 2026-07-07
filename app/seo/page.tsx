@@ -192,6 +192,12 @@ function truncateUrl(u: string, max = 56): string {
   return s.length > max ? s.slice(0, max) + '…' : s
 }
 
+/** GSC のデバイス名（DESKTOP 等）を表示用に整形 */
+function deviceLabel(device: string): string {
+  const d = device.toLowerCase()
+  return d.charAt(0).toUpperCase() + d.slice(1)
+}
+
 /* ── ページ本体 ── */
 
 export default function SeoPage() {
@@ -300,6 +306,35 @@ export default function SeoPage() {
           {error}
         </div>
       )}
+
+      {/* 前回同期で失敗・未設定のソースがあれば原因を表示 */}
+      {data?.meta?.lastResult && (() => {
+        const r = data.meta.lastResult!
+        const issues = ([
+          ['GA4', r.ga4],
+          ['Search Console', r.gsc],
+          ['Clarity', r.clarity],
+        ] as const).filter(([, s]) => s && s.status !== 'ok')
+        if (issues.length === 0) return null
+        return (
+          <div
+            className="rounded-[12px] px-4 py-3 mb-4 text-[13px] space-y-1.5"
+            style={{ background: 'rgba(245,158,11,0.07)', border: '1px solid rgba(245,158,11,0.30)', color: '#92600a' }}
+          >
+            <div className="font-bold flex items-center gap-1.5">
+              <AlertTriangle size={14} />
+              前回の同期（{fmtDateTime(r.syncedAt)}）で取得できなかったデータソースがあります
+            </div>
+            {issues.map(([label, s]) => (
+              <div key={label} className="pl-5">
+                <span className="font-semibold">{label}</span>
+                {s.status === 'skipped_missing_config' ? '（環境変数が未設定）' : '（取得失敗）'}
+                {s.error && <span className="break-all">: {s.error.slice(0, 300)}</span>}
+              </div>
+            ))}
+          </div>
+        )
+      })()}
 
       {/* Tabs + Range */}
       <div className="flex flex-wrap items-center justify-between gap-3 mb-6 border-b border-[#E2E8F0]">
@@ -525,17 +560,48 @@ export default function SeoPage() {
               </SectionCard>
 
               <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-                <SectionCard title="デバイス別">
-                  <DataTable
-                    columns={[
-                      { label: 'デバイス', render: (r: SeoDashboardData['gscDevices'][number]) => <span className="font-medium capitalize">{r.device.toLowerCase()}</span> },
-                      { label: 'クリック', align: 'right', render: r => fmtInt(r.clicks) },
-                      { label: '表示', align: 'right', render: r => fmtInt(r.impressions) },
-                      { label: 'CTR', align: 'right', render: r => fmtPct(r.ctr) },
-                    ]}
-                    rows={data.gscDevices}
-                    keyOf={r => r.device}
-                  />
+                <SectionCard title="デバイス別（クリック構成）">
+                  {data.gscDevices.length === 0 ? (
+                    <p className="text-sm py-6 text-center" style={{ color: 'var(--text-faint)' }}>データがありません</p>
+                  ) : (
+                    <>
+                      <div className="h-[220px]">
+                        <ResponsiveContainer width="100%" height="100%">
+                          <PieChart>
+                            <Pie
+                              data={data.gscDevices.map(d => ({ ...d, label: deviceLabel(d.device) }))}
+                              dataKey="clicks"
+                              nameKey="label"
+                              innerRadius={52}
+                              outerRadius={86}
+                              paddingAngle={3}
+                            >
+                              {data.gscDevices.map((_, i) => (
+                                <Cell key={i} fill={PIE_COLORS[i % PIE_COLORS.length]} />
+                              ))}
+                            </Pie>
+                            <Tooltip
+                              contentStyle={{ borderRadius: 10, border: '1px solid rgba(20,44,92,0.14)', fontSize: 12 }}
+                              formatter={(v, name) => [`${fmtInt(Number(v ?? 0))} クリック`, String(name)]}
+                            />
+                            <Legend wrapperStyle={{ fontSize: 12 }} />
+                          </PieChart>
+                        </ResponsiveContainer>
+                      </div>
+                      <div className="mt-3 space-y-1.5">
+                        {data.gscDevices.map((r, i) => (
+                          <div key={r.device} className="flex items-center gap-2 text-[12px]" style={{ color: 'var(--text-muted)' }}>
+                            <span
+                              className="w-2.5 h-2.5 rounded-full flex-shrink-0"
+                              style={{ background: PIE_COLORS[i % PIE_COLORS.length] }}
+                            />
+                            <span className="font-semibold w-[64px]" style={{ color: 'var(--ink)' }}>{deviceLabel(r.device)}</span>
+                            <span className="tabular-nums">{fmtInt(r.clicks)} クリック / {fmtInt(r.impressions)} 表示 / CTR {fmtPct(r.ctr)}</span>
+                          </div>
+                        ))}
+                      </div>
+                    </>
+                  )}
                 </SectionCard>
                 <SectionCard title="国別 Top10">
                   <DataTable
