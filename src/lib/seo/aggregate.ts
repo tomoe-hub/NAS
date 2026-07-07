@@ -74,6 +74,7 @@ export interface ClarityUx {
   sessions: number
   distinctUsers: number
   totalPageviews: number
+  pagesPerSession: number
   scrollDepth: number
   engagementTime: number
   deadClickCount: number
@@ -110,6 +111,7 @@ function aggregateClarityUx(rows: ClarityDailyRow[]): ClarityUx | null {
     sessions: summary.traffic,
     distinctUsers: summary.distinctUsers ?? 0,
     totalPageviews: summary.totalPageviews ?? 0,
+    pagesPerSession: summary.pagesPerSession ?? 0,
     scrollDepth,
     engagementTime: summary.engagementTime,
     deadClickCount: summary.deadClickCount,

@@ -737,7 +737,7 @@ export default function SeoPage() {
                   <div className="lg:col-span-2 grid grid-cols-2 md:grid-cols-3 gap-3 content-start">
                     <KpiCard label="セッション" value={fmtInt(data.clarity.ux.sessions)} icon={Users} />
                     <KpiCard label="ユニークユーザー" value={fmtInt(data.clarity.ux.distinctUsers)} icon={Users} />
-                    <KpiCard label="ページビュー" value={fmtInt(data.clarity.ux.totalPageviews)} icon={Eye} />
+                    <KpiCard label="ページ/セッション" value={data.clarity.ux.pagesPerSession > 0 ? data.clarity.ux.pagesPerSession.toFixed(1) : '—'} icon={Eye} />
                     <KpiCard label="スクロール深度" value={`${data.clarity.ux.scrollDepth.toFixed(1)}%`} icon={Gauge} />
                     <KpiCard label="Deadクリック率" value={fmtPct(data.clarity.ux.deadClickRate)} icon={MousePointerClick} />
                     <KpiCard label="Rageクリック率" value={fmtPct(data.clarity.ux.rageClickRate)} icon={AlertTriangle} />
