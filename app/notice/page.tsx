@@ -227,7 +227,7 @@ export default function NoticePage() {
           一次執筆用のプロンプトは、<strong className="font-semibold" style={{ color: '#0f766e' }}>基本プロンプト ひな形 V2</strong>
           の利用を推奨します。
           <Link
-            href="/prompts"
+            href="/library?tab=prompts"
             className="ml-1 font-semibold underline underline-offset-2 hover:opacity-80"
             style={{ color: 'var(--primary)' }}
           >

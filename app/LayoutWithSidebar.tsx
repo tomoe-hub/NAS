@@ -8,9 +8,9 @@ import {
   Send,
   CalendarDays,
   BookMarked,
-  Hash,
   BarChart3,
   PieChart,
+  LineChart,
   Database,
   ShieldAlert,
   Images,
@@ -23,10 +23,10 @@ const navItems = [
   { href: '/articles',  label: '保存済み記事一覧',     icon: FolderOpen },
   { href: '/published', label: '過去投稿済み記事一覧', icon: Send },
   { href: '/schedule',  label: '投稿スケジュール',     icon: CalendarDays },
-  { href: '/prompts',   label: 'プロンプト',           icon: BookMarked },
-  { href: '/keywords',  label: 'キーワード',           icon: Hash },
+  { href: '/library',   label: 'KW/プロンプト',        icon: BookMarked },
   { href: '/ahrefs',    label: 'KW分析',               icon: BarChart3 },
   { href: '/article-analytics', label: '記事分析',      icon: PieChart },
+  { href: '/seo',       label: 'SEO分析',              icon: LineChart },
   { href: '/materials', label: '資料更新',              icon: Database },
   { href: '/images',    label: '画像',                  icon: Images },
   { href: '/personas',  label: '仮説ペルソナ',          icon: Users },
@@ -73,7 +73,7 @@ export default function LayoutWithSidebar({
       >
         {/* Brand */}
         <div
-          className="flex items-center gap-3 px-5 py-5"
+          className="flex items-center gap-3 px-5 py-4"
           style={{ borderBottom: '1px solid rgba(255,255,255,0.11)' }}
         >
           <div>
@@ -88,14 +88,17 @@ export default function LayoutWithSidebar({
         </div>
 
         {/* Nav */}
-        <nav className="flex-1 px-3 py-4 space-y-1 overflow-y-auto">
+        <nav
+          className="flex-1 min-h-0 px-3 py-2.5 space-y-0.5 overflow-y-auto [&::-webkit-scrollbar]:hidden"
+          style={{ scrollbarWidth: 'none' }}
+        >
           {navItems.map(({ href, label, icon: Icon }) => {
             const isActive = pathname === href || pathname.startsWith(href + '/')
             return (
               <Link
                 key={href}
                 href={href}
-                className="flex items-center gap-3 min-h-[46px] px-3 rounded-[13px] text-[14px] font-[600] transition-all duration-150"
+                className="flex items-center gap-3 min-h-[40px] px-3 rounded-[13px] text-[14px] font-[600] whitespace-nowrap transition-all duration-150"
                 style={
                   isActive
                     ? {
@@ -130,11 +133,11 @@ export default function LayoutWithSidebar({
 
         {/* Footer */}
         <div
-          className="px-4 pb-5 pt-3"
+          className="px-4 pb-4 pt-2.5"
           style={{ borderTop: '1px solid rgba(255,255,255,0.09)' }}
         >
           <div
-            className="rounded-[14px] px-3 py-3 text-[11px] leading-relaxed"
+            className="rounded-[14px] px-3 py-2 text-[11px] leading-relaxed"
             style={{
               color: 'rgba(234,242,255,0.60)',
               background: 'rgba(255,255,255,0.06)',

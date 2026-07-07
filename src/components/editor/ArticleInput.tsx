@@ -297,7 +297,7 @@ export default function ArticleInput({
                           <div className="px-4 py-4 text-sm text-[#64748B] leading-relaxed">
                             <p className="mb-3">キーワードライブラリに保存されたセットはまだありません。</p>
                             <Link
-                              href="/keywords"
+                              href="/library?tab=keywords"
                               className="font-medium text-[#002C93] hover:underline"
                               onClick={() => setShowKeywordDropdown(false)}
                             >
