@@ -16,24 +16,46 @@ import { generateWithClaude } from '@/lib/api/claude'
 import { loadGscRows, loadGa4Rows } from '@/lib/seo/seoStore'
 
 const RESULTS_KEY = 'site-audit/results.json'
+const HISTORY_KEY = 'site-audit/history.json'
+
+/** 履歴として保持する診断スナップショットの最大数 */
+const MAX_HISTORY_SNAPSHOTS = 15
 
 /** 診断対象として許可するドメイン（SSRF対策） */
 const ALLOWED_HOST_SUFFIXES = ['nihon-teikei.co.jp', 'nihon-teikei.com']
 
-/** 診断対象ページのプリセット（ユーザー提供のサイト構成） */
-export const DEFAULT_AUDIT_PAGES: { url: string; label: string }[] = [
-  { url: 'https://nihon-teikei.co.jp/', label: 'トップページ' },
-  { url: 'https://nihon-teikei.co.jp/about/', label: '日本提携支援について' },
-  { url: 'https://nihon-teikei.co.jp/service/', label: '事業内容ページ' },
-  { url: 'https://nihon-teikei.co.jp/news/casestudy/', label: '導入事例ページ' },
-  { url: 'https://nihon-teikei.co.jp/news/column/', label: '記事ページ' },
-  { url: 'https://nihon-teikei.co.jp/whitepaper/', label: 'ホワイトペーパーページ' },
-  { url: 'https://nihon-teikei.co.jp/news/', label: 'ニュースページ' },
-  { url: 'https://nihon-teikei.com/intern/', label: '採用ページ' },
-  { url: 'https://nihon-teikei.co.jp/ma-newstandard/', label: 'ニュースタンダードページ' },
-  { url: 'https://subsidy.nihon-teikei.co.jp/', label: '補助金LP' },
-  { url: 'https://subsidy.nihon-teikei.co.jp/subsidies', label: '補助金プラットフォームページ' },
+/**
+ * マーケティングファネル上のフェーズ。
+ * ペルソナページのカスタマージャーニーと対応させ、各ページが
+ * 「顧客のどの段階を担うページか」を可視化するために使う。
+ */
+export type AuditPhase = 'entrance' | 'awareness' | 'research' | 'comparison' | 'conversion' | 'other'
+
+/** 診断対象ページのプリセット（ユーザー提供のサイト構成＋ファネルフェーズ分類） */
+export const DEFAULT_AUDIT_PAGES: { url: string; label: string; phase: AuditPhase }[] = [
+  { url: 'https://nihon-teikei.co.jp/', label: 'トップページ', phase: 'entrance' },
+  { url: 'https://nihon-teikei.co.jp/about/', label: '日本提携支援について', phase: 'comparison' },
+  { url: 'https://nihon-teikei.co.jp/service/', label: '事業内容ページ', phase: 'comparison' },
+  { url: 'https://nihon-teikei.co.jp/news/casestudy/', label: '導入事例ページ', phase: 'comparison' },
+  { url: 'https://nihon-teikei.co.jp/news/column/', label: '記事ページ', phase: 'awareness' },
+  { url: 'https://nihon-teikei.co.jp/whitepaper/', label: 'ホワイトペーパーページ', phase: 'research' },
+  { url: 'https://nihon-teikei.co.jp/news/', label: 'ニュースページ', phase: 'awareness' },
+  { url: 'https://nihon-teikei.com/intern/', label: '採用ページ', phase: 'other' },
+  { url: 'https://nihon-teikei.co.jp/ma-newstandard/', label: 'ニュースタンダードページ', phase: 'research' },
+  { url: 'https://subsidy.nihon-teikei.co.jp/', label: '補助金LP', phase: 'research' },
+  { url: 'https://subsidy.nihon-teikei.co.jp/subsidies', label: '補助金プラットフォームページ', phase: 'conversion' },
 ]
+
+function normUrlKey(u: string): string {
+  return u.replace(/\/+$/, '')
+}
+
+/** URLからファネルフェーズを判定（プリセット一致、カスタムURLは 'other'） */
+export function phaseForUrl(url: string): AuditPhase {
+  const target = normUrlKey(url)
+  const hit = DEFAULT_AUDIT_PAGES.find(p => normUrlKey(p.url) === target)
+  return hit?.phase ?? 'other'
+}
 
 /* ── 型 ── */
 
@@ -86,6 +108,8 @@ export interface PageGa4Stats {
 export interface PageAuditResult {
   url: string
   label: string
+  /** ファネル上の役割（可視化用） */
+  phase: AuditPhase
   generatedAt: string
   tech: PageTechAudit
   gsc?: PageGscStats
@@ -107,6 +131,15 @@ export interface SiteAuditDocument {
   overall?: SiteAuditOverall
 }
 
+/** 診断履歴のスナップショット（総合サマリ生成のたびに日付単位で保存） */
+export interface SiteAuditSnapshot {
+  /** 診断日（YYYY-MM-DD, JST） */
+  date: string
+  savedAt: string
+  pages: Record<string, PageAuditResult>
+  overall?: SiteAuditOverall
+}
+
 /* ── S3 ── */
 
 export async function loadSiteAuditDocument(): Promise<SiteAuditDocument> {
@@ -114,7 +147,12 @@ export async function loadSiteAuditDocument(): Promise<SiteAuditDocument> {
   if (!obj) return { updatedAt: '', pages: {} }
   try {
     const parsed = JSON.parse(obj.content) as SiteAuditDocument
-    return { updatedAt: parsed.updatedAt ?? '', pages: parsed.pages ?? {}, overall: parsed.overall }
+    const pages = parsed.pages ?? {}
+    // 旧データ（phaseなし）はURLから補完
+    for (const key of Object.keys(pages)) {
+      if (!pages[key].phase) pages[key].phase = phaseForUrl(pages[key].url)
+    }
+    return { updatedAt: parsed.updatedAt ?? '', pages, overall: parsed.overall }
   } catch {
     return { updatedAt: '', pages: {} }
   }
@@ -123,6 +161,42 @@ export async function loadSiteAuditDocument(): Promise<SiteAuditDocument> {
 async function saveSiteAuditDocument(doc: SiteAuditDocument): Promise<void> {
   const ok = await putS3Object(RESULTS_KEY, JSON.stringify(doc, null, 2))
   if (!ok) throw new Error('診断結果のS3保存に失敗しました')
+}
+
+export async function loadSiteAuditHistory(): Promise<SiteAuditSnapshot[]> {
+  const obj = await getS3ObjectAsText(HISTORY_KEY)
+  if (!obj) return []
+  try {
+    const parsed = JSON.parse(obj.content)
+    return Array.isArray(parsed) ? (parsed as SiteAuditSnapshot[]) : []
+  } catch {
+    return []
+  }
+}
+
+function todayJst(): string {
+  return new Date(Date.now() + 9 * 3600000).toISOString().slice(0, 10)
+}
+
+/** 現在の診断結果を履歴に日付単位でスナップショット保存（同日は上書き） */
+async function snapshotToHistory(doc: SiteAuditDocument): Promise<void> {
+  try {
+    const history = await loadSiteAuditHistory()
+    const date = todayJst()
+    const snapshot: SiteAuditSnapshot = {
+      date,
+      savedAt: new Date().toISOString(),
+      pages: doc.pages,
+      overall: doc.overall,
+    }
+    const next = [snapshot, ...history.filter(h => h.date !== date)]
+      .sort((a, b) => (a.date < b.date ? 1 : -1))
+      .slice(0, MAX_HISTORY_SNAPSHOTS)
+    await putS3Object(HISTORY_KEY, JSON.stringify(next))
+  } catch (e) {
+    // 履歴保存の失敗は診断自体を失敗させない
+    console.warn('[SiteAudit] 履歴スナップショット保存失敗:', e)
+  }
 }
 
 /* ── URL検証 ── */
@@ -517,6 +591,7 @@ export async function auditPage(url: string, label: string): Promise<PageAuditRe
   const result: PageAuditResult = {
     url,
     label,
+    phase: phaseForUrl(url),
     generatedAt: new Date().toISOString(),
     tech,
     ...(metrics.gsc ? { gsc: metrics.gsc } : {}),
@@ -606,5 +681,7 @@ export async function generateSiteAuditOverall(): Promise<SiteAuditOverall> {
   doc.overall = overall
   doc.updatedAt = overall.generatedAt
   await saveSiteAuditDocument(doc)
+  // 診断一式（ページ別＋総合）が揃ったタイミングで履歴に残す
+  await snapshotToHistory(doc)
   return overall
 }

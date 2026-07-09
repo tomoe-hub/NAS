@@ -221,8 +221,11 @@ export default function SeoPage() {
   const [tab, setTab] = useState<TabKey>('overview')
 
   const [aiReport, setAiReport] = useState<SeoAiReport | null>(null)
+  const [aiHistory, setAiHistory] = useState<SeoAiReport[]>([])
   const [aiGenerating, setAiGenerating] = useState(false)
   const [aiError, setAiError] = useState<string | null>(null)
+  /** 表示中のレポート: 'latest' または履歴の generatedAt */
+  const [aiViewTab, setAiViewTab] = useState<string>('latest')
 
   useEffect(() => {
     let cancelled = false
@@ -230,7 +233,10 @@ export default function SeoPage() {
       try {
         const res = await fetch('/api/seo/ai-analysis', { cache: 'no-store' })
         const body = await res.json()
-        if (!cancelled && res.ok && body.report) setAiReport(body.report)
+        if (!cancelled && res.ok) {
+          if (body.report) setAiReport(body.report)
+          if (Array.isArray(body.history)) setAiHistory(body.history)
+        }
       } catch {
         /* 保存済みレポートがないだけなので無視 */
       }
@@ -251,12 +257,25 @@ export default function SeoPage() {
       const body = await res.json().catch(() => ({}))
       if (!res.ok) throw new Error(body.error ?? `AI分析に失敗しました (${res.status})`)
       setAiReport(body.report)
+      setAiViewTab('latest')
+      // 履歴（日付タブ）を再取得
+      try {
+        const hres = await fetch('/api/seo/ai-analysis', { cache: 'no-store' })
+        const hbody = await hres.json()
+        if (hres.ok && Array.isArray(hbody.history)) setAiHistory(hbody.history)
+      } catch { /* 次回ロード時に反映 */ }
     } catch (e) {
       setAiError(e instanceof Error ? e.message : 'AI分析に失敗しました')
     } finally {
       setAiGenerating(false)
     }
   }
+
+  /** 表示対象のレポート（最新 or 履歴） */
+  const aiViewed: SeoAiReport | null =
+    aiViewTab === 'latest'
+      ? aiReport
+      : aiHistory.find(h => h.generatedAt === aiViewTab) ?? aiReport
 
   const load = useCallback(async (r: RangeKey) => {
     setLoading(true)
@@ -895,6 +914,48 @@ export default function SeoPage() {
                 </div>
               )}
 
+              {/* 分析履歴タブ（日付） */}
+              {(aiReport || aiHistory.length > 0) && (
+                <div className="flex flex-wrap items-center gap-2">
+                  <span className="text-[12px] font-bold mr-1" style={{ color: 'var(--text-muted)' }}>分析履歴</span>
+                  <button
+                    onClick={() => setAiViewTab('latest')}
+                    className="px-3 py-1.5 rounded-full text-[12px] font-bold transition-colors"
+                    style={
+                      aiViewTab === 'latest'
+                        ? { background: '#002C93', color: '#fff' }
+                        : { background: 'rgba(20,44,92,0.06)', color: 'var(--text-muted)' }
+                    }
+                  >
+                    最新
+                  </button>
+                  {aiHistory
+                    .filter(h => h.generatedAt !== aiReport?.generatedAt)
+                    .map(h => (
+                      <button
+                        key={h.generatedAt}
+                        onClick={() => setAiViewTab(h.generatedAt)}
+                        className="px-3 py-1.5 rounded-full text-[12px] font-bold transition-colors"
+                        style={
+                          aiViewTab === h.generatedAt
+                            ? { background: '#002C93', color: '#fff' }
+                            : { background: 'rgba(20,44,92,0.06)', color: 'var(--text-muted)' }
+                        }
+                      >
+                        {new Date(h.generatedAt).toLocaleDateString('ja-JP', { month: 'numeric', day: 'numeric' })}
+                      </button>
+                    ))}
+                  {aiViewTab !== 'latest' && (
+                    <span
+                      className="inline-flex items-center px-2.5 py-1 rounded-full text-[11px] font-bold"
+                      style={{ background: 'rgba(245,158,11,0.12)', color: '#92600a' }}
+                    >
+                      過去の分析を表示中
+                    </span>
+                  )}
+                </div>
+              )}
+
               {!aiReport && !aiGenerating && (
                 <div
                   className="rounded-[16px] p-14 text-center"
@@ -907,20 +968,33 @@ export default function SeoPage() {
                 </div>
               )}
 
-              {aiReport && (
+              {aiViewed && (
                 <>
                   {/* 現状サマリ */}
-                  <SectionCard title="現状サマリ">
+                  <div
+                    className="rounded-[16px] p-6"
+                    style={{
+                      background: 'linear-gradient(135deg, rgba(0,44,147,0.04) 0%, rgba(124,92,255,0.05) 100%)',
+                      border: '1px solid var(--border)',
+                      boxShadow: 'var(--shadow-sm)',
+                    }}
+                  >
+                    <div className="flex flex-wrap items-center justify-between gap-2 mb-3">
+                      <h3 className="text-sm font-bold" style={{ color: 'var(--ink)' }}>現状サマリ</h3>
+                      <span className="text-[11px]" style={{ color: 'var(--text-faint)' }}>
+                        {fmtDateTime(aiViewed.generatedAt)} 分析／対象期間 {aiViewed.periodLabel}
+                      </span>
+                    </div>
                     <p className="text-sm leading-relaxed whitespace-pre-wrap" style={{ color: 'var(--ink)' }}>
-                      {aiReport.summary}
+                      {aiViewed.summary}
                     </p>
-                  </SectionCard>
+                  </div>
 
                   {/* 良い点 / 課題 */}
                   <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
                     <SectionCard title="良い点">
                       <ul className="space-y-2.5">
-                        {aiReport.strengths.map((s, i) => (
+                        {aiViewed.strengths.map((s, i) => (
                           <li key={i} className="flex gap-2.5 text-sm leading-relaxed" style={{ color: 'var(--ink)' }}>
                             <CheckCircle2 size={16} className="flex-shrink-0 mt-0.5" style={{ color: '#0f9d58' }} />
                             <span>{s}</span>
@@ -930,7 +1004,7 @@ export default function SeoPage() {
                     </SectionCard>
                     <SectionCard title="課題">
                       <ul className="space-y-2.5">
-                        {aiReport.issues.map((s, i) => (
+                        {aiViewed.issues.map((s, i) => (
                           <li key={i} className="flex gap-2.5 text-sm leading-relaxed" style={{ color: 'var(--ink)' }}>
                             <AlertTriangle size={16} className="flex-shrink-0 mt-0.5" style={{ color: '#f59e0b' }} />
                             <span>{s}</span>
@@ -940,41 +1014,57 @@ export default function SeoPage() {
                     </SectionCard>
                   </div>
 
-                  {/* 打ち手 */}
+                  {/* 打ち手（優先度カラム） */}
                   <SectionCard title="打ち手（推奨アクション）">
-                    <div className="space-y-3">
-                      {aiReport.actions.map((a, i) => {
-                        const pm = PRIORITY_META[a.priority]
+                    <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
+                      {(['high', 'medium', 'low'] as const).map(prio => {
+                        const pm = PRIORITY_META[prio]
+                        const actions = aiViewed.actions.filter(a => a.priority === prio)
                         return (
-                          <div
-                            key={i}
-                            className="rounded-[12px] p-4"
-                            style={{ background: 'rgba(18,103,242,0.03)', border: '1px solid var(--border)' }}
-                          >
-                            <div className="flex flex-wrap items-center gap-2 mb-1.5">
-                              <span
-                                className="inline-flex items-center justify-center w-6 h-6 rounded-full flex-shrink-0"
-                                style={{ background: 'rgba(18,103,242,0.10)', color: '#1267f2' }}
-                              >
-                                <Target size={13} />
-                              </span>
-                              <span className="text-sm font-bold" style={{ color: 'var(--ink)' }}>{a.title}</span>
-                              <span
-                                className="inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-bold"
-                                style={{ color: pm.color, background: pm.bg }}
-                              >
-                                {pm.label}
-                              </span>
-                              <span
-                                className="inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-semibold"
-                                style={{ color: 'var(--text-muted)', background: 'rgba(20,44,92,0.06)' }}
-                              >
-                                {a.category}
-                              </span>
+                          <div key={prio} className="min-w-0">
+                            <div
+                              className="rounded-t-[10px] px-3 py-2 text-[12px] font-black text-white"
+                              style={{
+                                background:
+                                  prio === 'high'
+                                    ? 'linear-gradient(90deg, #e53e4f, #f4708a)'
+                                    : prio === 'medium'
+                                      ? 'linear-gradient(90deg, #f59e0b, #fbbf24)'
+                                      : 'linear-gradient(90deg, #64748B, #94A3B8)',
+                              }}
+                            >
+                              {pm.label}（{actions.length}件）
                             </div>
-                            <p className="text-[13px] leading-relaxed pl-8" style={{ color: 'var(--text-muted)' }}>
-                              {a.description}
-                            </p>
+                            <div
+                              className="rounded-b-[10px] p-2.5 space-y-2.5 min-h-[80px]"
+                              style={{ background: 'rgba(18,103,242,0.03)', border: '1px solid var(--border)', borderTop: 'none' }}
+                            >
+                              {actions.length === 0 ? (
+                                <p className="text-[11px] text-center pt-4" style={{ color: 'var(--text-faint)' }}>なし</p>
+                              ) : (
+                                actions.map((a, i) => (
+                                  <div
+                                    key={i}
+                                    className="rounded-[10px] p-3"
+                                    style={{ background: 'white', border: '1px solid var(--border)', boxShadow: 'var(--shadow-sm)' }}
+                                  >
+                                    <div className="flex items-center gap-1.5 mb-1 flex-wrap">
+                                      <Target size={12} style={{ color: '#1267f2' }} className="flex-shrink-0" />
+                                      <span className="text-[12px] font-bold" style={{ color: 'var(--ink)' }}>{a.title}</span>
+                                      <span
+                                        className="inline-flex items-center px-1.5 py-0 rounded-full text-[10px] font-semibold"
+                                        style={{ color: 'var(--text-muted)', background: 'rgba(20,44,92,0.06)' }}
+                                      >
+                                        {a.category}
+                                      </span>
+                                    </div>
+                                    <p className="text-[11px] leading-relaxed" style={{ color: 'var(--text-muted)' }}>
+                                      {a.description}
+                                    </p>
+                                  </div>
+                                ))
+                              )}
+                            </div>
                           </div>
                         )
                       })}
@@ -982,13 +1072,13 @@ export default function SeoPage() {
                   </SectionCard>
 
                   {/* データの注意点 */}
-                  {aiReport.dataCaveats.length > 0 && (
+                  {aiViewed.dataCaveats.length > 0 && (
                     <div
                       className="rounded-[12px] px-4 py-3 text-[12px] space-y-1"
                       style={{ background: 'rgba(100,116,139,0.06)', border: '1px solid var(--border)', color: 'var(--text-muted)' }}
                     >
                       <p className="font-bold">データの読み方の注意</p>
-                      {aiReport.dataCaveats.map((c, i) => (
+                      {aiViewed.dataCaveats.map((c, i) => (
                         <p key={i}>・{c}</p>
                       ))}
                     </div>

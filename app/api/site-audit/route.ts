@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import {
   loadSiteAuditDocument,
+  loadSiteAuditHistory,
   auditPage,
   generateSiteAuditOverall,
   DEFAULT_AUDIT_PAGES,
@@ -9,11 +10,11 @@ import {
 export const dynamic = 'force-dynamic'
 export const maxDuration = 300
 
-/** GET /api/site-audit — 保存済みの診断結果とプリセットページ一覧を取得 */
+/** GET /api/site-audit — 保存済みの診断結果・診断履歴・プリセットページ一覧を取得 */
 export async function GET() {
   try {
-    const doc = await loadSiteAuditDocument()
-    return NextResponse.json({ doc, defaultPages: DEFAULT_AUDIT_PAGES })
+    const [doc, history] = await Promise.all([loadSiteAuditDocument(), loadSiteAuditHistory()])
+    return NextResponse.json({ doc, history, defaultPages: DEFAULT_AUDIT_PAGES })
   } catch (e) {
     console.error('[SiteAudit] GET error:', e)
     return NextResponse.json({ error: '診断結果の取得に失敗しました' }, { status: 500 })

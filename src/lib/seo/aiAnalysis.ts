@@ -17,6 +17,10 @@ import { buildSeoDashboardData, type SeoDashboardData } from './aggregate'
 import { rangeKeyOrDefault, type RangeKey } from './dateRange'
 
 const REPORT_KEY = 'seo-metrics/ai-analysis.json'
+const HISTORY_KEY = 'seo-metrics/ai-analysis-history.json'
+
+/** 履歴として保持するレポートの最大数 */
+const MAX_HISTORY_REPORTS = 20
 
 export type SeoAiActionPriority = 'high' | 'medium' | 'low'
 
@@ -50,6 +54,36 @@ export async function loadSeoAiReport(): Promise<SeoAiReport | null> {
     return parsed?.generatedAt ? parsed : null
   } catch {
     return null
+  }
+}
+
+/** 過去のAI分析レポート一覧（新しい順） */
+export async function loadSeoAiHistory(): Promise<SeoAiReport[]> {
+  const obj = await getS3ObjectAsText(HISTORY_KEY)
+  if (!obj) return []
+  try {
+    const parsed = JSON.parse(obj.content)
+    return Array.isArray(parsed) ? (parsed as SeoAiReport[]) : []
+  } catch {
+    return []
+  }
+}
+
+function jstDateOf(iso: string): string {
+  return new Date(Date.parse(iso) + 9 * 3600000).toISOString().slice(0, 10)
+}
+
+/** レポートを履歴に日付単位で保存（同日の再分析は上書き） */
+async function appendToHistory(report: SeoAiReport): Promise<void> {
+  try {
+    const history = await loadSeoAiHistory()
+    const date = jstDateOf(report.generatedAt)
+    const next = [report, ...history.filter(h => jstDateOf(h.generatedAt) !== date)]
+      .sort((a, b) => (a.generatedAt < b.generatedAt ? 1 : -1))
+      .slice(0, MAX_HISTORY_REPORTS)
+    await putS3Object(HISTORY_KEY, JSON.stringify(next))
+  } catch (e) {
+    console.warn('[SEO AI] 履歴保存失敗:', e)
   }
 }
 
@@ -304,5 +338,6 @@ export async function generateSeoAiReport(rangeRaw: string | null | undefined): 
   if (!ok) {
     throw new Error('AI分析レポートのS3保存に失敗しました')
   }
+  await appendToHistory(report)
   return report
 }

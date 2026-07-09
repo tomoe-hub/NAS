@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useState } from 'react'
 import {
   ScanSearch,
   Loader2,
@@ -10,16 +10,22 @@ import {
   Globe,
   Plus,
   RefreshCw,
+  History,
+  Filter,
 } from 'lucide-react'
 import type {
   SiteAuditDocument,
+  SiteAuditSnapshot,
+  SiteAuditOverall,
   PageAuditResult,
   AuditPriority,
+  AuditPhase,
 } from '@/lib/siteAudit'
 
 interface AuditPageDef {
   url: string
   label: string
+  phase?: AuditPhase
 }
 
 const PRIORITY_META: Record<AuditPriority, { label: string; color: string; bg: string }> = {
@@ -28,8 +34,23 @@ const PRIORITY_META: Record<AuditPriority, { label: string; color: string; bg: s
   low: { label: '優先度 低', color: '#475569', bg: 'rgba(100,116,139,0.12)' },
 }
 
+/** ファネルフェーズの表示定義（上から下へ顧客が進む順） */
+const PHASES: { key: AuditPhase; label: string; desc: string; color: string; gradient: string }[] = [
+  { key: 'entrance', label: '入口・ブランド', desc: 'サイトの顔。第一印象と各ページへの導線', color: '#1267f2', gradient: 'linear-gradient(90deg, #1267f2 0%, #4f8ef7 100%)' },
+  { key: 'awareness', label: '認知', desc: '検索・SNSからの流入を集める', color: '#0ea5e9', gradient: 'linear-gradient(90deg, #0ea5e9 0%, #38bdf8 100%)' },
+  { key: 'research', label: '情報収集', desc: '課題を自覚した見込み客が学ぶ', color: '#14b8a6', gradient: 'linear-gradient(90deg, #14b8a6 0%, #2dd4bf 100%)' },
+  { key: 'comparison', label: '比較検討', desc: '依頼先として信頼できるか見極める', color: '#f59e0b', gradient: 'linear-gradient(90deg, #f59e0b 0%, #fbbf24 100%)' },
+  { key: 'conversion', label: '意思決定・CV', desc: '問い合わせ・サービス利用に進む', color: '#e53e4f', gradient: 'linear-gradient(90deg, #e53e4f 0%, #f4708a 100%)' },
+]
+
+const OTHER_PHASE = { key: 'other' as AuditPhase, label: 'ファネル外', desc: '採用など、顧客導線とは別の役割のページ' }
+
 function scoreColor(score: number): string {
   return score >= 80 ? '#0f9d58' : score >= 60 ? '#f59e0b' : '#e53e4f'
+}
+
+function scoreGrade(score: number): string {
+  return score >= 80 ? '良好' : score >= 60 ? '要改善' : '要対策'
 }
 
 function fmtDateTime(iso?: string): string {
@@ -37,8 +58,46 @@ function fmtDateTime(iso?: string): string {
   return new Date(iso).toLocaleString('ja-JP', { month: 'numeric', day: 'numeric', hour: '2-digit', minute: '2-digit' })
 }
 
+function fmtTabDate(ymd: string): string {
+  const [, m, d] = ymd.split('-').map(Number)
+  return `${m}/${d}`
+}
+
 function fmtInt(n: number): string {
   return Math.round(n).toLocaleString('ja-JP')
+}
+
+function pageAnchorId(url: string): string {
+  return `audit-page-${encodeURIComponent(url)}`
+}
+
+/** スコアの円形ゲージ */
+function ScoreRing({ score, size = 64, stroke = 7 }: { score: number; size?: number; stroke?: number }) {
+  const r = (size - stroke) / 2
+  const c = 2 * Math.PI * r
+  const color = scoreColor(score)
+  return (
+    <div className="relative flex-shrink-0" style={{ width: size, height: size }}>
+      <svg viewBox={`0 0 ${size} ${size}`} className="w-full h-full -rotate-90">
+        <circle cx={size / 2} cy={size / 2} r={r} fill="none" stroke="rgba(20,44,92,0.08)" strokeWidth={stroke} />
+        <circle
+          cx={size / 2}
+          cy={size / 2}
+          r={r}
+          fill="none"
+          stroke={color}
+          strokeWidth={stroke}
+          strokeLinecap="round"
+          strokeDasharray={`${(score / 100) * c} ${c}`}
+        />
+      </svg>
+      <div className="absolute inset-0 flex items-center justify-center">
+        <span className="font-black leading-none" style={{ color: 'var(--ink)', fontSize: size * 0.3 }}>
+          {score}
+        </span>
+      </div>
+    </div>
+  )
 }
 
 /** 技術チェックのステータスチップ */
@@ -92,6 +151,7 @@ function buildTechChips(r: PageAuditResult): { status: 'ok' | 'warn' | 'ng'; lab
 
 export default function SiteAuditPage() {
   const [doc, setDoc] = useState<SiteAuditDocument | null>(null)
+  const [history, setHistory] = useState<SiteAuditSnapshot[]>([])
   const [defaultPages, setDefaultPages] = useState<AuditPageDef[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
@@ -105,18 +165,26 @@ export default function SiteAuditPage() {
   const [progress, setProgress] = useState<{ done: number; total: number; current: string } | null>(null)
   const [runErrors, setRunErrors] = useState<string[]>([])
 
+  /** 表示中の診断: 'latest' または履歴の日付（YYYY-MM-DD） */
+  const [viewTab, setViewTab] = useState<string>('latest')
+
+  const refresh = useCallback(async (opts?: { initSelection?: boolean }) => {
+    const res = await fetch('/api/site-audit', { cache: 'no-store' })
+    const body = await res.json()
+    if (!res.ok) throw new Error(body.error ?? '取得に失敗しました')
+    setDoc(body.doc)
+    setHistory(body.history ?? [])
+    setDefaultPages(body.defaultPages ?? [])
+    if (opts?.initSelection) {
+      setSelected(new Set((body.defaultPages ?? []).map((p: AuditPageDef) => p.url)))
+    }
+  }, [])
+
   useEffect(() => {
     let cancelled = false
     void (async () => {
       try {
-        const res = await fetch('/api/site-audit', { cache: 'no-store' })
-        const body = await res.json()
-        if (!res.ok) throw new Error(body.error ?? '取得に失敗しました')
-        if (cancelled) return
-        setDoc(body.doc)
-        setDefaultPages(body.defaultPages ?? [])
-        // 初期状態は全ページ選択
-        setSelected(new Set((body.defaultPages ?? []).map((p: AuditPageDef) => p.url)))
+        await refresh({ initSelection: true })
       } catch (e) {
         if (!cancelled) setError(e instanceof Error ? e.message : '取得に失敗しました')
       } finally {
@@ -124,7 +192,7 @@ export default function SiteAuditPage() {
       }
     })()
     return () => { cancelled = true }
-  }, [])
+  }, [refresh])
 
   /** プリセット＋過去に診断したページ＋手動追加の統合一覧 */
   const allPages: AuditPageDef[] = useMemo(() => {
@@ -138,10 +206,43 @@ export default function SiteAuditPage() {
     for (const p of Object.values(doc?.pages ?? {})) {
       if (seen.has(p.url)) continue
       seen.add(p.url)
-      out.push({ url: p.url, label: p.label })
+      out.push({ url: p.url, label: p.label, phase: p.phase })
     }
     return out
   }, [defaultPages, customPages, doc])
+
+  /** 表示対象（最新 or 履歴スナップショット） */
+  const view: { pages: Record<string, PageAuditResult>; overall?: SiteAuditOverall; dateLabel: string; isHistory: boolean } = useMemo(() => {
+    if (viewTab !== 'latest') {
+      const snap = history.find(h => h.date === viewTab)
+      if (snap) {
+        return { pages: snap.pages, overall: snap.overall, dateLabel: `${fmtTabDate(snap.date)} 時点`, isHistory: true }
+      }
+    }
+    return { pages: doc?.pages ?? {}, overall: doc?.overall, dateLabel: '最新', isHistory: false }
+  }, [viewTab, history, doc])
+
+  const viewedPages = useMemo(() => {
+    const list = Object.values(view.pages)
+    const order = new Map(allPages.map((p, i) => [p.url, i]))
+    return list.sort((a, b) => (order.get(a.url) ?? 999) - (order.get(b.url) ?? 999))
+  }, [view, allPages])
+
+  const scored = useMemo(() => viewedPages.filter(p => p.ai), [viewedPages])
+  const avgScore = useMemo(
+    () => (scored.length > 0 ? Math.round(scored.reduce((s, p) => s + (p.ai?.score ?? 0), 0) / scored.length) : 0),
+    [scored],
+  )
+  const gradeCounts = useMemo(() => {
+    const c = { good: 0, warn: 0, bad: 0 }
+    for (const p of scored) {
+      const s = p.ai!.score
+      if (s >= 80) c.good++
+      else if (s >= 60) c.warn++
+      else c.bad++
+    }
+    return c
+  }, [scored])
 
   const toggle = (url: string) => {
     setSelected(prev => {
@@ -162,7 +263,7 @@ export default function SiteAuditPage() {
       return
     }
     setError(null)
-    const def = { url, label: customLabel.trim() || url }
+    const def: AuditPageDef = { url, label: customLabel.trim() || url, phase: 'other' }
     setCustomPages(prev => (prev.some(p => p.url === url) ? prev : [...prev, def]))
     setSelected(prev => new Set(prev).add(url))
     setCustomUrl('')
@@ -176,6 +277,7 @@ export default function SiteAuditPage() {
     setRunning(true)
     setRunErrors([])
     setError(null)
+    setViewTab('latest')
 
     const errors: string[] = []
     for (let i = 0; i < targets.length; i++) {
@@ -189,7 +291,6 @@ export default function SiteAuditPage() {
         })
         const body = await res.json().catch(() => ({}))
         if (!res.ok) throw new Error(body.error ?? `診断に失敗しました (${res.status})`)
-        // 都度反映（進捗が見えるように）
         setDoc(prev => {
           const next: SiteAuditDocument = prev
             ? { ...prev, pages: { ...prev.pages } }
@@ -203,7 +304,6 @@ export default function SiteAuditPage() {
       }
     }
 
-    // 総合サマリ生成
     setProgress({ done: targets.length, total: targets.length, current: '総合サマリを生成中' })
     try {
       const res = await fetch('/api/site-audit', {
@@ -218,17 +318,36 @@ export default function SiteAuditPage() {
       errors.push(`総合サマリ: ${e instanceof Error ? e.message : String(e)}`)
     }
 
+    // 履歴（日付タブ）を更新
+    try {
+      await refresh()
+    } catch {
+      /* 次回ロード時に反映される */
+    }
+
     setRunErrors(errors)
     setProgress(null)
     setRunning(false)
   }
 
-  const auditedPages = useMemo(() => {
-    const list = Object.values(doc?.pages ?? {})
-    // 一覧の並び順（プリセット順→その他）で表示
-    const order = new Map(allPages.map((p, i) => [p.url, i]))
-    return list.sort((a, b) => (order.get(a.url) ?? 999) - (order.get(b.url) ?? 999))
-  }, [doc, allPages])
+  const scrollToPage = (url: string) => {
+    document.getElementById(pageAnchorId(url))?.scrollIntoView({ behavior: 'smooth', block: 'start' })
+  }
+
+  /** ファネルの各フェーズに属するページ（診断結果があれば紐付け） */
+  const phasePages = useMemo(() => {
+    const map = new Map<AuditPhase, { def: AuditPageDef; result?: PageAuditResult }[]>()
+    for (const p of allPages) {
+      const result = view.pages[p.url]
+      const phase: AuditPhase = result?.phase ?? p.phase ?? 'other'
+      const arr = map.get(phase) ?? []
+      arr.push({ def: p, result })
+      map.set(phase, arr)
+    }
+    return map
+  }, [allPages, view])
+
+  const hasAnyResult = viewedPages.length > 0
 
   return (
     <div className="w-full py-8 max-w-5xl mx-auto">
@@ -437,184 +556,50 @@ export default function SiteAuditPage() {
             </div>
           )}
 
-          {/* ── 総合サマリ ── */}
-          {doc?.overall && (
-            <div
-              className="rounded-[16px] p-6"
-              style={{ background: 'var(--surface-raised)', border: '1px solid var(--border)', boxShadow: 'var(--shadow-sm)' }}
-            >
-              <div className="flex flex-wrap items-center justify-between gap-2 mb-4">
-                <h2 className="text-base font-bold" style={{ color: 'var(--ink)' }}>サイト全体の総合サマリ</h2>
-                <span className="text-[11px]" style={{ color: 'var(--text-faint)' }}>
-                  生成: {fmtDateTime(doc.overall.generatedAt)}
-                </span>
-              </div>
-              <p className="text-sm leading-relaxed mb-5 whitespace-pre-wrap" style={{ color: 'var(--ink)' }}>
-                {doc.overall.summary}
-              </p>
-
-              <div className="mb-5">
-                <p className="text-xs font-bold mb-2" style={{ color: 'var(--text-muted)' }}>横断的な課題</p>
-                <ul className="space-y-2">
-                  {doc.overall.issues.map((s, i) => (
-                    <li key={i} className="flex gap-2.5 text-sm leading-relaxed" style={{ color: 'var(--ink)' }}>
-                      <AlertTriangle size={15} className="flex-shrink-0 mt-0.5" style={{ color: '#f59e0b' }} />
-                      <span>{s}</span>
-                    </li>
-                  ))}
-                </ul>
-              </div>
-
-              <p className="text-xs font-bold mb-2" style={{ color: 'var(--text-muted)' }}>打ち手（推奨アクション）</p>
-              <div className="space-y-3">
-                {doc.overall.actions.map((a, i) => {
-                  const pm = PRIORITY_META[a.priority]
-                  return (
-                    <div
-                      key={i}
-                      className="rounded-[12px] p-4"
-                      style={{ background: 'rgba(18,103,242,0.03)', border: '1px solid var(--border)' }}
-                    >
-                      <div className="flex flex-wrap items-center gap-2 mb-1.5">
-                        <span
-                          className="inline-flex items-center justify-center w-6 h-6 rounded-full flex-shrink-0"
-                          style={{ background: 'rgba(18,103,242,0.10)', color: '#1267f2' }}
-                        >
-                          <Target size={13} />
-                        </span>
-                        <span className="text-sm font-bold" style={{ color: 'var(--ink)' }}>{a.title}</span>
-                        <span
-                          className="inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-bold"
-                          style={{ color: pm.color, background: pm.bg }}
-                        >
-                          {pm.label}
-                        </span>
-                        <span
-                          className="inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-semibold"
-                          style={{ color: 'var(--text-muted)', background: 'rgba(20,44,92,0.06)' }}
-                        >
-                          {a.category}
-                        </span>
-                      </div>
-                      <p className="text-[13px] leading-relaxed pl-8" style={{ color: 'var(--text-muted)' }}>
-                        {a.description}
-                      </p>
-                    </div>
-                  )
-                })}
-              </div>
-            </div>
-          )}
-
-          {/* ── ページ別診断結果 ── */}
-          {auditedPages.length > 0 && (
-            <div className="space-y-4">
-              <h2 className="text-base font-bold" style={{ color: 'var(--ink)' }}>ページ別診断結果</h2>
-              {auditedPages.map(r => (
-                <div
-                  key={r.url}
-                  className="rounded-[16px] p-5"
-                  style={{ background: 'var(--surface-raised)', border: '1px solid var(--border)', boxShadow: 'var(--shadow-sm)' }}
+          {/* ── 診断履歴タブ ── */}
+          {(hasAnyResult || history.length > 0) && (
+            <div className="flex flex-wrap items-center gap-2 border-b pb-3" style={{ borderColor: 'var(--border)' }}>
+              <span className="inline-flex items-center gap-1.5 text-[12px] font-bold mr-1" style={{ color: 'var(--text-muted)' }}>
+                <History size={13} />
+                診断履歴
+              </span>
+              <button
+                onClick={() => setViewTab('latest')}
+                className="px-3 py-1.5 rounded-full text-[12px] font-bold transition-colors"
+                style={
+                  viewTab === 'latest'
+                    ? { background: '#002C93', color: '#fff' }
+                    : { background: 'rgba(20,44,92,0.06)', color: 'var(--text-muted)' }
+                }
+              >
+                最新
+              </button>
+              {history.map(h => (
+                <button
+                  key={h.date}
+                  onClick={() => setViewTab(h.date)}
+                  className="px-3 py-1.5 rounded-full text-[12px] font-bold transition-colors"
+                  style={
+                    viewTab === h.date
+                      ? { background: '#002C93', color: '#fff' }
+                      : { background: 'rgba(20,44,92,0.06)', color: 'var(--text-muted)' }
+                  }
                 >
-                  <div className="flex flex-wrap items-start justify-between gap-3 mb-3">
-                    <div className="min-w-0">
-                      <div className="flex items-center gap-2.5 flex-wrap">
-                        <span className="text-sm font-bold" style={{ color: 'var(--ink)' }}>{r.label}</span>
-                        {r.ai && (
-                          <span
-                            className="inline-flex items-center px-2.5 py-0.5 rounded-full text-[12px] font-black"
-                            style={{ color: scoreColor(r.ai.score), background: `${scoreColor(r.ai.score)}18` }}
-                          >
-                            {r.ai.score} / 100
-                          </span>
-                        )}
-                      </div>
-                      <a
-                        href={r.url}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="text-[11px] hover:underline break-all"
-                        style={{ color: 'var(--text-faint)' }}
-                      >
-                        {r.url}
-                      </a>
-                    </div>
-                    <span className="text-[11px] flex-shrink-0" style={{ color: 'var(--text-faint)' }}>
-                      診断: {fmtDateTime(r.generatedAt)}
-                    </span>
-                  </div>
-
-                  {/* 技術チェックチップ */}
-                  <div className="flex flex-wrap gap-1.5 mb-3">
-                    {buildTechChips(r).map((c, i) => (
-                      <TechChip key={i} status={c.status} label={c.label} />
-                    ))}
-                  </div>
-
-                  {/* 実測値 */}
-                  {(r.gsc || r.ga4) && (
-                    <p className="text-[12px] mb-3" style={{ color: 'var(--text-muted)' }}>
-                      {r.gsc && (
-                        <>GSC直近28日: クリック {fmtInt(r.gsc.clicks)} ／ 表示 {fmtInt(r.gsc.impressions)} ／ 平均順位 {r.gsc.position.toFixed(1)}　</>
-                      )}
-                      {r.ga4 && (
-                        <>GA4直近28日: セッション {fmtInt(r.ga4.sessions)} ／ PV {fmtInt(r.ga4.pageViews)}</>
-                      )}
-                    </p>
-                  )}
-
-                  {r.ai && (
-                    <>
-                      <p className="text-sm leading-relaxed mb-3" style={{ color: 'var(--ink)' }}>
-                        {r.ai.summary}
-                      </p>
-
-                      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-                        <div
-                          className="rounded-[10px] p-3.5"
-                          style={{ background: 'rgba(245,158,11,0.05)', border: '1px solid rgba(245,158,11,0.18)' }}
-                        >
-                          <p className="text-xs font-bold mb-2" style={{ color: '#92600a' }}>課題</p>
-                          <ul className="space-y-1.5">
-                            {r.ai.issues.map((s, i) => (
-                              <li key={i} className="text-[12px] leading-relaxed" style={{ color: 'var(--ink)' }}>
-                                ・{s}
-                              </li>
-                            ))}
-                          </ul>
-                        </div>
-                        <div
-                          className="rounded-[10px] p-3.5"
-                          style={{ background: 'rgba(18,103,242,0.04)', border: '1px solid var(--border)' }}
-                        >
-                          <p className="text-xs font-bold mb-2" style={{ color: 'var(--primary)' }}>打ち手</p>
-                          <ul className="space-y-2">
-                            {r.ai.actions.map((a, i) => {
-                              const pm = PRIORITY_META[a.priority]
-                              return (
-                                <li key={i} className="text-[12px] leading-relaxed" style={{ color: 'var(--ink)' }}>
-                                  <span className="font-bold">{a.title}</span>
-                                  <span
-                                    className="inline-flex items-center px-1.5 py-0 rounded-full text-[10px] font-bold ml-1.5 align-middle"
-                                    style={{ color: pm.color, background: pm.bg }}
-                                  >
-                                    {pm.label}
-                                  </span>
-                                  <span className="block mt-0.5" style={{ color: 'var(--text-muted)' }}>{a.description}</span>
-                                </li>
-                              )
-                            })}
-                          </ul>
-                        </div>
-                      </div>
-                    </>
-                  )}
-                </div>
+                  {fmtTabDate(h.date)}
+                </button>
               ))}
+              {view.isHistory && (
+                <span
+                  className="inline-flex items-center px-2.5 py-1 rounded-full text-[11px] font-bold ml-1"
+                  style={{ background: 'rgba(245,158,11,0.12)', color: '#92600a' }}
+                >
+                  {view.dateLabel}の記録を表示中
+                </span>
+              )}
             </div>
           )}
 
-          {auditedPages.length === 0 && !running && (
+          {!hasAnyResult && !running ? (
             <div
               className="rounded-[16px] p-14 text-center"
               style={{ background: 'var(--surface-raised)', border: '1.5px dashed var(--border)' }}
@@ -624,12 +609,354 @@ export default function SiteAuditPage() {
                 上のページ一覧から対象を選んで「診断」を実行してください
               </p>
             </div>
+          ) : hasAnyResult && (
+            <>
+              {/* ── サイト全体スコア ── */}
+              {scored.length > 0 && (
+                <div
+                  className="rounded-[16px] p-6 grid grid-cols-1 md:grid-cols-3 gap-6 items-center"
+                  style={{ background: 'var(--surface-raised)', border: '1px solid var(--border)', boxShadow: 'var(--shadow-sm)' }}
+                >
+                  <div className="flex items-center gap-5">
+                    <ScoreRing score={avgScore} size={110} stroke={11} />
+                    <div>
+                      <p className="text-[12px] font-semibold mb-0.5" style={{ color: 'var(--text-muted)' }}>サイト平均スコア</p>
+                      <p className="text-lg font-black" style={{ color: scoreColor(avgScore) }}>{scoreGrade(avgScore)}</p>
+                      <p className="text-[11px]" style={{ color: 'var(--text-faint)' }}>{scored.length}ページの平均</p>
+                    </div>
+                  </div>
+                  <div className="md:col-span-2 space-y-2.5">
+                    {[
+                      { label: '良好（80点以上）', count: gradeCounts.good, color: '#0f9d58' },
+                      { label: '要改善（60〜79点）', count: gradeCounts.warn, color: '#f59e0b' },
+                      { label: '要対策（60点未満）', count: gradeCounts.bad, color: '#e53e4f' },
+                    ].map(row => (
+                      <div key={row.label} className="flex items-center gap-3">
+                        <span className="text-[12px] font-semibold w-[140px] flex-shrink-0" style={{ color: 'var(--text-muted)' }}>
+                          {row.label}
+                        </span>
+                        <div className="flex-1 h-4 rounded-full overflow-hidden" style={{ background: 'rgba(20,44,92,0.06)' }}>
+                          <div
+                            className="h-full rounded-full transition-all duration-700"
+                            style={{ width: `${(row.count / Math.max(1, scored.length)) * 100}%`, background: row.color }}
+                          />
+                        </div>
+                        <span className="text-[13px] font-black w-10 text-right" style={{ color: row.color }}>
+                          {row.count}
+                        </span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {/* ── ファネルマップ ── */}
+              <div
+                className="rounded-[16px] p-6"
+                style={{ background: 'var(--surface-raised)', border: '1px solid var(--border)', boxShadow: 'var(--shadow-sm)' }}
+              >
+                <div className="flex items-center gap-2 mb-1">
+                  <Filter size={16} style={{ color: 'var(--primary)' }} />
+                  <h2 className="text-base font-bold" style={{ color: 'var(--ink)' }}>ファネルマップ（各ページの役割とスコア）</h2>
+                </div>
+                <p className="text-[12px] mb-5" style={{ color: 'var(--text-muted)' }}>
+                  顧客が上から下へ進むマーケティングファネル上に、各ページがどのフェーズを担っているかを配置しています。ページ名をクリックすると詳細に移動します。
+                </p>
+
+                <div className="space-y-2">
+                  {PHASES.map((phase, i) => {
+                    const items = phasePages.get(phase.key) ?? []
+                    const width = 100 - i * 7
+                    return (
+                      <div key={phase.key} className="flex justify-center">
+                        <div
+                          className="rounded-[12px] px-4 py-3"
+                          style={{ width: `${width}%`, background: phase.gradient, boxShadow: '0 3px 10px rgba(10,30,80,0.14)' }}
+                        >
+                          <div className="flex flex-wrap items-center gap-x-3 gap-y-1.5">
+                            <div className="w-[150px] flex-shrink-0">
+                              <p className="text-[13px] font-black text-white leading-tight">{phase.label}</p>
+                              <p className="text-[10px] leading-tight" style={{ color: 'rgba(255,255,255,0.75)' }}>{phase.desc}</p>
+                            </div>
+                            <div className="flex flex-wrap gap-1.5 flex-1 min-w-0">
+                              {items.length === 0 ? (
+                                <span className="text-[11px] font-semibold" style={{ color: 'rgba(255,255,255,0.65)' }}>
+                                  対象ページなし
+                                </span>
+                              ) : (
+                                items.map(({ def, result }) => (
+                                  <button
+                                    key={def.url}
+                                    onClick={() => result && scrollToPage(def.url)}
+                                    disabled={!result}
+                                    className="inline-flex items-center gap-1.5 pl-2.5 pr-1.5 py-1 rounded-full text-[11px] font-bold transition-transform hover:scale-[1.04] disabled:cursor-default"
+                                    style={{ background: 'rgba(255,255,255,0.92)', color: '#0a1e50' }}
+                                    title={def.url}
+                                  >
+                                    <span className="truncate max-w-[150px]">{def.label}</span>
+                                    {result?.ai ? (
+                                      <span
+                                        className="inline-flex items-center justify-center min-w-[30px] px-1 py-0.5 rounded-full text-[10px] font-black text-white"
+                                        style={{ background: scoreColor(result.ai.score) }}
+                                      >
+                                        {result.ai.score}
+                                      </span>
+                                    ) : (
+                                      <span
+                                        className="inline-flex items-center px-1.5 py-0.5 rounded-full text-[10px] font-bold"
+                                        style={{ background: 'rgba(20,44,92,0.10)', color: '#64748B' }}
+                                      >
+                                        未診断
+                                      </span>
+                                    )}
+                                  </button>
+                                ))
+                              )}
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+                    )
+                  })}
+
+                  {/* ファネル外 */}
+                  {(phasePages.get('other') ?? []).length > 0 && (
+                    <div className="flex justify-center pt-1">
+                      <div
+                        className="rounded-[12px] px-4 py-3 w-full"
+                        style={{ background: 'rgba(100,116,139,0.08)', border: '1px dashed rgba(100,116,139,0.35)' }}
+                      >
+                        <div className="flex flex-wrap items-center gap-x-3 gap-y-1.5">
+                          <div className="w-[150px] flex-shrink-0">
+                            <p className="text-[13px] font-black leading-tight" style={{ color: '#475569' }}>{OTHER_PHASE.label}</p>
+                            <p className="text-[10px] leading-tight" style={{ color: '#94A3B8' }}>{OTHER_PHASE.desc}</p>
+                          </div>
+                          <div className="flex flex-wrap gap-1.5 flex-1 min-w-0">
+                            {(phasePages.get('other') ?? []).map(({ def, result }) => (
+                              <button
+                                key={def.url}
+                                onClick={() => result && scrollToPage(def.url)}
+                                disabled={!result}
+                                className="inline-flex items-center gap-1.5 pl-2.5 pr-1.5 py-1 rounded-full text-[11px] font-bold transition-transform hover:scale-[1.04] disabled:cursor-default"
+                                style={{ background: 'white', color: '#0a1e50', border: '1px solid var(--border)' }}
+                                title={def.url}
+                              >
+                                <span className="truncate max-w-[150px]">{def.label}</span>
+                                {result?.ai ? (
+                                  <span
+                                    className="inline-flex items-center justify-center min-w-[30px] px-1 py-0.5 rounded-full text-[10px] font-black text-white"
+                                    style={{ background: scoreColor(result.ai.score) }}
+                                  >
+                                    {result.ai.score}
+                                  </span>
+                                ) : (
+                                  <span
+                                    className="inline-flex items-center px-1.5 py-0.5 rounded-full text-[10px] font-bold"
+                                    style={{ background: 'rgba(20,44,92,0.08)', color: '#64748B' }}
+                                  >
+                                    未診断
+                                  </span>
+                                )}
+                              </button>
+                            ))}
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              </div>
+
+              {/* ── 総合サマリ ── */}
+              {view.overall && (
+                <div
+                  className="rounded-[16px] p-6"
+                  style={{ background: 'var(--surface-raised)', border: '1px solid var(--border)', boxShadow: 'var(--shadow-sm)' }}
+                >
+                  <div className="flex flex-wrap items-center justify-between gap-2 mb-4">
+                    <h2 className="text-base font-bold" style={{ color: 'var(--ink)' }}>サイト全体の総合サマリ</h2>
+                    <span className="text-[11px]" style={{ color: 'var(--text-faint)' }}>
+                      生成: {fmtDateTime(view.overall.generatedAt)}
+                    </span>
+                  </div>
+                  <p className="text-sm leading-relaxed mb-5 whitespace-pre-wrap" style={{ color: 'var(--ink)' }}>
+                    {view.overall.summary}
+                  </p>
+
+                  <div className="mb-5">
+                    <p className="text-xs font-bold mb-2" style={{ color: 'var(--text-muted)' }}>横断的な課題</p>
+                    <ul className="space-y-2">
+                      {view.overall.issues.map((s, i) => (
+                        <li key={i} className="flex gap-2.5 text-sm leading-relaxed" style={{ color: 'var(--ink)' }}>
+                          <AlertTriangle size={15} className="flex-shrink-0 mt-0.5" style={{ color: '#f59e0b' }} />
+                          <span>{s}</span>
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
+
+                  <p className="text-xs font-bold mb-2" style={{ color: 'var(--text-muted)' }}>打ち手（推奨アクション）</p>
+                  <div className="space-y-3">
+                    {view.overall.actions.map((a, i) => {
+                      const pm = PRIORITY_META[a.priority]
+                      return (
+                        <div
+                          key={i}
+                          className="rounded-[12px] p-4"
+                          style={{ background: 'rgba(18,103,242,0.03)', border: '1px solid var(--border)' }}
+                        >
+                          <div className="flex flex-wrap items-center gap-2 mb-1.5">
+                            <span
+                              className="inline-flex items-center justify-center w-6 h-6 rounded-full flex-shrink-0"
+                              style={{ background: 'rgba(18,103,242,0.10)', color: '#1267f2' }}
+                            >
+                              <Target size={13} />
+                            </span>
+                            <span className="text-sm font-bold" style={{ color: 'var(--ink)' }}>{a.title}</span>
+                            <span
+                              className="inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-bold"
+                              style={{ color: pm.color, background: pm.bg }}
+                            >
+                              {pm.label}
+                            </span>
+                            <span
+                              className="inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-semibold"
+                              style={{ color: 'var(--text-muted)', background: 'rgba(20,44,92,0.06)' }}
+                            >
+                              {a.category}
+                            </span>
+                          </div>
+                          <p className="text-[13px] leading-relaxed pl-8" style={{ color: 'var(--text-muted)' }}>
+                            {a.description}
+                          </p>
+                        </div>
+                      )
+                    })}
+                  </div>
+                </div>
+              )}
+
+              {/* ── ページ別診断結果 ── */}
+              <div className="space-y-4">
+                <h2 className="text-base font-bold" style={{ color: 'var(--ink)' }}>ページ別診断結果</h2>
+                {viewedPages.map(r => {
+                  const phaseMeta = PHASES.find(p => p.key === r.phase)
+                  return (
+                    <div
+                      key={r.url}
+                      id={pageAnchorId(r.url)}
+                      className="rounded-[16px] p-5 scroll-mt-6"
+                      style={{ background: 'var(--surface-raised)', border: '1px solid var(--border)', boxShadow: 'var(--shadow-sm)' }}
+                    >
+                      <div className="flex flex-wrap items-start gap-4 mb-3">
+                        {r.ai && <ScoreRing score={r.ai.score} size={64} stroke={7} />}
+                        <div className="min-w-0 flex-1">
+                          <div className="flex items-center gap-2 flex-wrap mb-0.5">
+                            <span className="text-sm font-bold" style={{ color: 'var(--ink)' }}>{r.label}</span>
+                            <span
+                              className="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-black text-white"
+                              style={{ background: phaseMeta?.color ?? '#64748B' }}
+                            >
+                              {phaseMeta?.label ?? OTHER_PHASE.label}
+                            </span>
+                            {r.ai && (
+                              <span
+                                className="inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-bold"
+                                style={{ color: scoreColor(r.ai.score), background: `${scoreColor(r.ai.score)}18` }}
+                              >
+                                {scoreGrade(r.ai.score)}
+                              </span>
+                            )}
+                          </div>
+                          <a
+                            href={r.url}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="text-[11px] hover:underline break-all"
+                            style={{ color: 'var(--text-faint)' }}
+                          >
+                            {r.url}
+                          </a>
+                          {(r.gsc || r.ga4) && (
+                            <p className="text-[12px] mt-1" style={{ color: 'var(--text-muted)' }}>
+                              {r.gsc && (
+                                <>GSC直近28日: クリック {fmtInt(r.gsc.clicks)} ／ 表示 {fmtInt(r.gsc.impressions)} ／ 平均順位 {r.gsc.position.toFixed(1)}　</>
+                              )}
+                              {r.ga4 && (
+                                <>GA4直近28日: セッション {fmtInt(r.ga4.sessions)} ／ PV {fmtInt(r.ga4.pageViews)}</>
+                              )}
+                            </p>
+                          )}
+                        </div>
+                        <span className="text-[11px] flex-shrink-0" style={{ color: 'var(--text-faint)' }}>
+                          診断: {fmtDateTime(r.generatedAt)}
+                        </span>
+                      </div>
+
+                      {/* 技術チェックチップ */}
+                      <div className="flex flex-wrap gap-1.5 mb-3">
+                        {buildTechChips(r).map((c, i) => (
+                          <TechChip key={i} status={c.status} label={c.label} />
+                        ))}
+                      </div>
+
+                      {r.ai && (
+                        <>
+                          <p className="text-sm leading-relaxed mb-3" style={{ color: 'var(--ink)' }}>
+                            {r.ai.summary}
+                          </p>
+
+                          <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+                            <div
+                              className="rounded-[10px] p-3.5"
+                              style={{ background: 'rgba(245,158,11,0.05)', border: '1px solid rgba(245,158,11,0.18)' }}
+                            >
+                              <p className="text-xs font-bold mb-2" style={{ color: '#92600a' }}>課題</p>
+                              <ul className="space-y-1.5">
+                                {r.ai.issues.map((s, i) => (
+                                  <li key={i} className="text-[12px] leading-relaxed" style={{ color: 'var(--ink)' }}>
+                                    ・{s}
+                                  </li>
+                                ))}
+                              </ul>
+                            </div>
+                            <div
+                              className="rounded-[10px] p-3.5"
+                              style={{ background: 'rgba(18,103,242,0.04)', border: '1px solid var(--border)' }}
+                            >
+                              <p className="text-xs font-bold mb-2" style={{ color: 'var(--primary)' }}>打ち手</p>
+                              <ul className="space-y-2">
+                                {r.ai.actions.map((a, i) => {
+                                  const pm = PRIORITY_META[a.priority]
+                                  return (
+                                    <li key={i} className="text-[12px] leading-relaxed" style={{ color: 'var(--ink)' }}>
+                                      <span className="font-bold">{a.title}</span>
+                                      <span
+                                        className="inline-flex items-center px-1.5 py-0 rounded-full text-[10px] font-bold ml-1.5 align-middle"
+                                        style={{ color: pm.color, background: pm.bg }}
+                                      >
+                                        {pm.label}
+                                      </span>
+                                      <span className="block mt-0.5" style={{ color: 'var(--text-muted)' }}>{a.description}</span>
+                                    </li>
+                                  )
+                                })}
+                              </ul>
+                            </div>
+                          </div>
+                        </>
+                      )}
+                    </div>
+                  )
+                })}
+              </div>
+            </>
           )}
 
           {/* 再診断の注意 */}
           <p className="text-[11px]" style={{ color: 'var(--text-faint)' }}>
             <RefreshCw size={11} className="inline mr-1 -mt-0.5" />
-            診断結果はS3に保存され、ページ単位で上書き更新されます。ページを修正した後に再診断すると最新の状態で評価されます。
+            診断結果はS3に保存されます。診断を実行するたびに日付タブとして履歴が残り、過去の診断結果と見比べられます（同じ日の再診断はその日のタブを上書きします）。
           </p>
         </div>
       )}
