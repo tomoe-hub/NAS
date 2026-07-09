@@ -14,6 +14,9 @@ import {
   Gauge,
   AlertTriangle,
   Loader2,
+  CheckCircle2,
+  Lightbulb,
+  Target,
   type LucideIcon,
 } from 'lucide-react'
 import {
@@ -31,8 +34,9 @@ import {
 } from 'recharts'
 import Button from '@/components/ui/Button'
 import type { SeoDashboardData } from '@/lib/seo/aggregate'
+import type { SeoAiReport, SeoAiActionPriority } from '@/lib/seo/aiAnalysis'
 
-type TabKey = 'overview' | 'gsc' | 'ga4' | 'clarity'
+type TabKey = 'overview' | 'gsc' | 'ga4' | 'clarity' | 'ai'
 type RangeKey = '7d' | '28d' | '90d'
 
 const TABS: { key: TabKey; label: string }[] = [
@@ -40,7 +44,14 @@ const TABS: { key: TabKey; label: string }[] = [
   { key: 'gsc', label: '検索（GSC）' },
   { key: 'ga4', label: 'トラフィック（GA4）' },
   { key: 'clarity', label: 'UX（Clarity）' },
+  { key: 'ai', label: 'AI分析' },
 ]
+
+const PRIORITY_META: Record<SeoAiActionPriority, { label: string; color: string; bg: string }> = {
+  high: { label: '優先度 高', color: '#c02637', bg: 'rgba(229,62,79,0.10)' },
+  medium: { label: '優先度 中', color: '#92600a', bg: 'rgba(245,158,11,0.12)' },
+  low: { label: '優先度 低', color: '#475569', bg: 'rgba(100,116,139,0.12)' },
+}
 
 const RANGES: { key: RangeKey; label: string }[] = [
   { key: '7d', label: '7日' },
@@ -208,6 +219,44 @@ export default function SeoPage() {
   const [syncMessage, setSyncMessage] = useState<string | null>(null)
   const [range, setRange] = useState<RangeKey>('28d')
   const [tab, setTab] = useState<TabKey>('overview')
+
+  const [aiReport, setAiReport] = useState<SeoAiReport | null>(null)
+  const [aiGenerating, setAiGenerating] = useState(false)
+  const [aiError, setAiError] = useState<string | null>(null)
+
+  useEffect(() => {
+    let cancelled = false
+    void (async () => {
+      try {
+        const res = await fetch('/api/seo/ai-analysis', { cache: 'no-store' })
+        const body = await res.json()
+        if (!cancelled && res.ok && body.report) setAiReport(body.report)
+      } catch {
+        /* 保存済みレポートがないだけなので無視 */
+      }
+    })()
+    return () => { cancelled = true }
+  }, [])
+
+  const handleAiGenerate = async () => {
+    if (aiGenerating) return
+    setAiGenerating(true)
+    setAiError(null)
+    try {
+      const res = await fetch('/api/seo/ai-analysis', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ range }),
+      })
+      const body = await res.json().catch(() => ({}))
+      if (!res.ok) throw new Error(body.error ?? `AI分析に失敗しました (${res.status})`)
+      setAiReport(body.report)
+    } catch (e) {
+      setAiError(e instanceof Error ? e.message : 'AI分析に失敗しました')
+    } finally {
+      setAiGenerating(false)
+    }
+  }
 
   const load = useCallback(async (r: RangeKey) => {
     setLoading(true)
@@ -795,6 +844,158 @@ export default function SeoPage() {
                 </p>
               </div>
             )
+          )}
+
+          {/* ── AI分析 ── */}
+          {tab === 'ai' && (
+            <>
+              {/* 実行CTA */}
+              <div
+                className="rounded-[16px] p-5 flex flex-wrap items-center justify-between gap-4"
+                style={{
+                  background: 'linear-gradient(135deg, rgba(18,103,242,0.06) 0%, rgba(124,92,255,0.06) 100%)',
+                  border: '1px solid var(--border)',
+                }}
+              >
+                <div>
+                  <p className="text-sm font-bold mb-1" style={{ color: 'var(--ink)' }}>
+                    AIによる総合SEO分析
+                  </p>
+                  <p className="text-xs leading-relaxed" style={{ color: 'var(--text-muted)' }}>
+                    GA4・Search Console・Clarity の実測データと記事・自動投稿の状況をAI（Claude）が分析し、
+                    現状 → 良い点 → 課題 → 打ち手 をレポートにまとめます。分析期間は上の期間セレクタ（現在: {RANGES.find(r => r.key === range)?.label}）に従います。
+                  </p>
+                  {aiReport && (
+                    <p className="text-[11px] mt-1.5" style={{ color: 'var(--text-faint)' }}>
+                      最終分析: {fmtDateTime(aiReport.generatedAt)}（対象期間 {aiReport.periodLabel}）
+                    </p>
+                  )}
+                </div>
+                <button
+                  onClick={() => void handleAiGenerate()}
+                  disabled={aiGenerating}
+                  className="inline-flex items-center gap-2 min-h-[42px] px-5 rounded-[11px] text-sm font-bold text-white transition-all hover:brightness-110 disabled:opacity-60 disabled:cursor-not-allowed flex-shrink-0"
+                  style={{
+                    background: 'linear-gradient(135deg, #1267f2 0%, #7c5cff 100%)',
+                    boxShadow: '0 4px 14px rgba(18,103,242,0.32)',
+                  }}
+                >
+                  {aiGenerating ? <Loader2 size={16} className="animate-spin" /> : <Lightbulb size={16} />}
+                  {aiGenerating ? '分析中...（30秒〜1分）' : aiReport ? '再分析する' : 'AI分析を実行'}
+                </button>
+              </div>
+
+              {aiError && (
+                <div
+                  className="rounded-[12px] px-4 py-2.5 text-sm font-medium flex items-center gap-2"
+                  style={{ background: 'rgba(229,62,79,0.07)', border: '1px solid rgba(229,62,79,0.25)', color: '#c02637' }}
+                >
+                  <AlertTriangle size={15} />
+                  {aiError}
+                </div>
+              )}
+
+              {!aiReport && !aiGenerating && (
+                <div
+                  className="rounded-[16px] p-14 text-center"
+                  style={{ background: 'var(--surface-raised)', border: '1.5px dashed var(--border)' }}
+                >
+                  <p className="font-medium mb-1" style={{ color: 'var(--text-muted)' }}>まだAI分析レポートがありません</p>
+                  <p className="text-sm" style={{ color: 'var(--text-faint)' }}>
+                    上の「AI分析を実行」を押すと、蓄積データからレポートを生成します
+                  </p>
+                </div>
+              )}
+
+              {aiReport && (
+                <>
+                  {/* 現状サマリ */}
+                  <SectionCard title="現状サマリ">
+                    <p className="text-sm leading-relaxed whitespace-pre-wrap" style={{ color: 'var(--ink)' }}>
+                      {aiReport.summary}
+                    </p>
+                  </SectionCard>
+
+                  {/* 良い点 / 課題 */}
+                  <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                    <SectionCard title="良い点">
+                      <ul className="space-y-2.5">
+                        {aiReport.strengths.map((s, i) => (
+                          <li key={i} className="flex gap-2.5 text-sm leading-relaxed" style={{ color: 'var(--ink)' }}>
+                            <CheckCircle2 size={16} className="flex-shrink-0 mt-0.5" style={{ color: '#0f9d58' }} />
+                            <span>{s}</span>
+                          </li>
+                        ))}
+                      </ul>
+                    </SectionCard>
+                    <SectionCard title="課題">
+                      <ul className="space-y-2.5">
+                        {aiReport.issues.map((s, i) => (
+                          <li key={i} className="flex gap-2.5 text-sm leading-relaxed" style={{ color: 'var(--ink)' }}>
+                            <AlertTriangle size={16} className="flex-shrink-0 mt-0.5" style={{ color: '#f59e0b' }} />
+                            <span>{s}</span>
+                          </li>
+                        ))}
+                      </ul>
+                    </SectionCard>
+                  </div>
+
+                  {/* 打ち手 */}
+                  <SectionCard title="打ち手（推奨アクション）">
+                    <div className="space-y-3">
+                      {aiReport.actions.map((a, i) => {
+                        const pm = PRIORITY_META[a.priority]
+                        return (
+                          <div
+                            key={i}
+                            className="rounded-[12px] p-4"
+                            style={{ background: 'rgba(18,103,242,0.03)', border: '1px solid var(--border)' }}
+                          >
+                            <div className="flex flex-wrap items-center gap-2 mb-1.5">
+                              <span
+                                className="inline-flex items-center justify-center w-6 h-6 rounded-full flex-shrink-0"
+                                style={{ background: 'rgba(18,103,242,0.10)', color: '#1267f2' }}
+                              >
+                                <Target size={13} />
+                              </span>
+                              <span className="text-sm font-bold" style={{ color: 'var(--ink)' }}>{a.title}</span>
+                              <span
+                                className="inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-bold"
+                                style={{ color: pm.color, background: pm.bg }}
+                              >
+                                {pm.label}
+                              </span>
+                              <span
+                                className="inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-semibold"
+                                style={{ color: 'var(--text-muted)', background: 'rgba(20,44,92,0.06)' }}
+                              >
+                                {a.category}
+                              </span>
+                            </div>
+                            <p className="text-[13px] leading-relaxed pl-8" style={{ color: 'var(--text-muted)' }}>
+                              {a.description}
+                            </p>
+                          </div>
+                        )
+                      })}
+                    </div>
+                  </SectionCard>
+
+                  {/* データの注意点 */}
+                  {aiReport.dataCaveats.length > 0 && (
+                    <div
+                      className="rounded-[12px] px-4 py-3 text-[12px] space-y-1"
+                      style={{ background: 'rgba(100,116,139,0.06)', border: '1px solid var(--border)', color: 'var(--text-muted)' }}
+                    >
+                      <p className="font-bold">データの読み方の注意</p>
+                      {aiReport.dataCaveats.map((c, i) => (
+                        <p key={i}>・{c}</p>
+                      ))}
+                    </div>
+                  )}
+                </>
+              )}
+            </>
           )}
         </div>
       )}
