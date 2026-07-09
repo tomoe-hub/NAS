@@ -22,6 +22,7 @@ import {
   List,
 } from 'lucide-react'
 import { snapScheduledTimeToQuarterHour } from '@/lib/scheduledTimeQuarterHour'
+import AutoArticleSettingsCard from '@/components/schedule/AutoArticleSettingsCard'
 
 function getDaysInMonth(year: number, month: number) {
   return new Date(year, month + 1, 0).getDate()
@@ -330,6 +331,9 @@ export default function SchedulePage() {
           記事の投稿予定日を設定・管理できます
         </p>
       </div>
+
+      {/* 自動投稿（ON/OFF・期間）設定 */}
+      <AutoArticleSettingsCard />
 
       {/* Schedule list table */}
       <div

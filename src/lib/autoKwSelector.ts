@@ -9,6 +9,11 @@
  * 共通ルール:
  * - 直近90日以内に同一KWで投稿（publish/future）済みのKWは除外
  * - 自動生成ログに残っているKWも除外（呼び出し側から excludeKeywords で渡す）
+ *
+ * GSC実測シグナル（データ蓄積後に自動有効化）:
+ * - 直近28日の合計表示回数が閾値以上になると有効化。未満の間はAhrefsのみで動作
+ * - ストライクゾーン（平均順位4〜20位）のクエリと一致するKWは選定時に加点
+ * - 既に上位表示（3位以内）のクエリと一致するKWは除外（共食い防止）
  */
 
 import { listS3Objects, getS3ObjectAsText } from '@/lib/s3Reference'
@@ -20,6 +25,7 @@ import { normalizeKeywordForArticleMatch } from '@/lib/keywordPublishIndex'
 import { getWordPressConfig } from '@/lib/wordpress'
 import { decodeHtmlEntities, type WpTagListItem } from '@/lib/wpTagList'
 import { buildKwPrompt } from '@/lib/kwPromptBuilder'
+import { loadGscKwSignals, type GscKwSignals } from '@/lib/seo/gscSignals'
 
 export type AutoSlot = 'opportunity' | 'coverage' | 'trend'
 
@@ -108,6 +114,7 @@ export async function loadRecentlyPublishedKeywords(): Promise<Set<string>> {
 function buildExclusionCheck(
   recentKws: Set<string>,
   extraExcludes: string[],
+  gsc: GscKwSignals,
 ): (keyword: string) => boolean {
   const extra = new Set(extraExcludes.map(normalizeKeywordForArticleMatch))
   return (keyword: string) => {
@@ -116,8 +123,21 @@ function buildExclusionCheck(
     if (isBrandKeyword(keyword)) return true
     if (recentKws.has(norm)) return true
     if (extra.has(norm)) return true
+    // 既にGSCで上位表示（3位以内）のKWは新規記事の対象外（共食い防止）
+    if (gsc.enabled && gsc.topRanking.has(norm)) return true
     return false
   }
+}
+
+/** GSCストライクゾーン一致時のスコア加点 */
+const GSC_STRIKE_BONUS = 25
+
+/** ストライクゾーン一致KWの選定理由に付ける補足テキスト。未一致なら空文字 */
+function gscReasonSuffix(gsc: GscKwSignals, keyword: string): string {
+  if (!gsc.enabled) return ''
+  const stat = gsc.strikeZone.get(normalizeKeywordForArticleMatch(keyword))
+  if (!stat) return ''
+  return `／GSC実測: 表示${stat.impressions} 平均${stat.position.toFixed(1)}位（ストライクゾーン加点）`
 }
 
 function priorityLabel(p: number): string {
@@ -192,8 +212,20 @@ export async function selectAutoKeyword(
   slot: AutoSlot,
   options?: { excludeKeywords?: string[] },
 ): Promise<AutoKwSelection | null> {
-  const recentKws = await loadRecentlyPublishedKeywords()
-  const isExcluded = buildExclusionCheck(recentKws, options?.excludeKeywords ?? [])
+  const [recentKws, gsc] = await Promise.all([
+    loadRecentlyPublishedKeywords(),
+    loadGscKwSignals(),
+  ])
+  if (gsc.enabled) {
+    console.log(
+      `[AutoKW] GSCシグナル有効（直近${gsc.windowDays}日 表示${gsc.totalImpressions}）: ストライクゾーン${gsc.strikeZone.size}件 / 上位表示除外${gsc.topRanking.size}件`,
+    )
+  } else {
+    console.log(
+      `[AutoKW] GSCシグナル無効（直近${gsc.windowDays}日 表示${gsc.totalImpressions} < 閾値）: Ahrefsのみで選定`,
+    )
+  }
+  const isExcluded = buildExclusionCheck(recentKws, options?.excludeKeywords ?? [], gsc)
 
   // ── 水曜: 手薄カテゴリー補強 ──────────────────────────────
   if (slot === 'coverage') {
@@ -220,7 +252,7 @@ export async function selectAutoKeyword(
           slot,
           keyword: c.keyword,
           prompt,
-          reason: `手薄タグ「${tag.name}」（${tag.count}件）の関連KW。vol=${c.volume} KD=${c.kd}`,
+          reason: `手薄タグ「${tag.name}」（${tag.count}件）の関連KW。vol=${c.volume} KD=${c.kd}${gscReasonSuffix(gsc, c.keyword)}`,
           ahrefs: { volume: c.volume, kd: c.kd, cpc: c.cpc },
           gapTag: { tagName: tag.name, articleCount: tag.count },
         }
@@ -258,22 +290,29 @@ export async function selectAutoKeyword(
       return selectionFromScored(
         slot,
         row,
-        `トレンド上昇KW（+${row.trendPercent}%）。優先度=${priorityLabel(row.priority)} score=${row.score}`,
+        `トレンド上昇KW（+${row.trendPercent}%）。優先度=${priorityLabel(row.priority)} score=${row.score}${gscReasonSuffix(gsc, row.keyword)}`,
       )
     }
     // 上昇KWが尽きた場合は狙い目にフォールバック
     console.warn('[AutoKW] トレンド上昇候補が尽きたため狙い目KWにフォールバック')
   }
 
-  // 狙い目KW（scored は priority → score 降順ソート済み）
-  for (const row of scored) {
-    if (row.priority === 0) break
+  // 狙い目KW（priority → GSCストライクゾーン加点込みscore の降順）
+  const strikeBonus = (keyword: string): number =>
+    gsc.enabled && gsc.strikeZone.has(normalizeKeywordForArticleMatch(keyword)) ? GSC_STRIKE_BONUS : 0
+  const ranked = [...scored].sort(
+    (a, b) =>
+      b.priority - a.priority ||
+      b.score + strikeBonus(b.keyword) - (a.score + strikeBonus(a.keyword)),
+  )
+  for (const row of ranked) {
+    if (row.priority === 0) continue
     if (row.volume < 30) continue
     if (isExcluded(row.keyword)) continue
     return selectionFromScored(
       slot,
       row,
-      `狙い目KW。優先度=${priorityLabel(row.priority)} score=${row.score} vol=${row.volume} KD=${row.kd}`,
+      `狙い目KW。優先度=${priorityLabel(row.priority)} score=${row.score} vol=${row.volume} KD=${row.kd}${gscReasonSuffix(gsc, row.keyword)}`,
     )
   }
 

@@ -103,7 +103,7 @@ export async function GET(request: NextRequest) {
   // 注意書きページのボタンからOFFにされている場合はスキップ
   const settings = await loadAutoArticleSettings()
   if (!settings.enabled) {
-    return NextResponse.json({ ok: true, skipped: true, reason: '自動生成が設定でOFFになっています（注意書きページから変更可能）' })
+    return NextResponse.json({ ok: true, skipped: true, reason: '自動生成が設定でOFFになっています（投稿スケジュール・注意書きページから変更可能）' })
   }
 
   const { searchParams } = new URL(request.url)
@@ -124,8 +124,13 @@ export async function GET(request: NextRequest) {
   const slot: AutoSlot | null = slotForWeekday(publishDow)
 
   if (!force) {
-    if (publishDate < START_DATE) {
-      return NextResponse.json({ ok: true, skipped: true, reason: `開始日前（${START_DATE}開始）`, publishDate })
+    // 期間は設定（投稿スケジュールページ）を優先し、未設定時はシステム既定の開始日
+    const effectiveStart = settings.startDate ?? START_DATE
+    if (publishDate < effectiveStart) {
+      return NextResponse.json({ ok: true, skipped: true, reason: `開始日前（${effectiveStart}開始）`, publishDate })
+    }
+    if (settings.endDate && publishDate > settings.endDate) {
+      return NextResponse.json({ ok: true, skipped: true, reason: `自動投稿期間の終了日（${settings.endDate}）を過ぎています`, publishDate })
     }
     if (!slot) {
       return NextResponse.json({ ok: true, skipped: true, reason: '投稿日（月水金）ではありません', publishDate })
