@@ -44,6 +44,13 @@ const AHREFS_COLUMN_HINTS = {
     '記事作成画面へ遷移します。保存済み記事のターゲットKWと一致する場合、公開日・予約を表示します。',
 } as const
 
+/**
+ * インポート履歴バッジ（CSV/APIの取り込み履歴一覧）をUIに表示するか。
+ * データ自体（S3のインデックス）は表示OFFでも引き続き蓄積・利用され、削除機能もコードは残す。
+ * 見栄えが悪いため、現在は非表示にしている。
+ */
+const SHOW_DATASET_HISTORY_BADGES = false
+
 export default function AhrefsPage() {
   const router = useRouter()
   const fileInputRef = useRef<HTMLInputElement>(null)
@@ -444,8 +451,8 @@ export default function AhrefsPage() {
         </div>
       )}
 
-      {/* Dataset badges */}
-      {index.length > 0 && (
+      {/* Dataset badges（インポート履歴。見栄えの都合でUI非表示。データ・削除機能はそのまま維持） */}
+      {SHOW_DATASET_HISTORY_BADGES && index.length > 0 && (
         <div className="flex flex-wrap gap-2 mb-5">
           {index.map(meta => {
             const isKw = meta.type === 'keywords'
