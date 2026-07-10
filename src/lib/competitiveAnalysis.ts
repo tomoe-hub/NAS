@@ -254,12 +254,30 @@ function extractJson(text: string): string {
   return cleaned.slice(start, end + 1)
 }
 
-async function generateJson<T>(prompt: string, maxTokens = 8_000): Promise<T> {
+/**
+ * Claudeは長い構造化出力で、まれに末尾のカンマ・配列閉じを落とすことがある。
+ * JSON.parseが失敗した場合は、同じ内容を再分析させず「JSON構文の修復」だけを
+ * 短い追加呼び出しで行う。
+ */
+async function generateJson<T>(prompt: string, maxTokens = 6_000): Promise<T> {
   let lastError: unknown
   for (let attempt = 0; attempt < 2; attempt++) {
     try {
       const raw = await generateWithClaude(prompt, { maxTokens, temperature: 0.35 })
-      return JSON.parse(extractJson(raw)) as T
+      try {
+        return JSON.parse(extractJson(raw)) as T
+      } catch (parseError) {
+        console.warn('[CompetitiveAnalysis] JSON構文エラー。修復を試行します:', parseError)
+        const repaired = await generateWithClaude(
+          `次のテキストはJSONとして出力されるべきでしたが、構文エラーがあります。
+内容・キー・値をなるべく維持し、厳密に有効なJSONオブジェクトだけを返してください。
+説明、Markdown、コードフェンスは一切出力しないでください。
+
+${raw.slice(0, 24_000)}`,
+          { maxTokens: Math.min(maxTokens, 5_000), temperature: 0 },
+        )
+        return JSON.parse(extractJson(repaired)) as T
+      }
     } catch (error) {
       lastError = error
       console.warn(`[CompetitiveAnalysis] Claude response failed (${attempt + 1}/2)`, error)
@@ -518,12 +536,13 @@ function collectFacts(config: CompetitorConfig[], doc: CompetitiveAnalysisDocume
   return config.map(c => {
     const axes = doc.competitors[c.id]?.axes
     if (!axes) return `${c.name}: 未分析`
+    const texts = (items: SourceFact[]) => items.slice(0, 2).map(x => x.text.slice(0, 180)).join(' / ')
     return `${c.name}
-メッセージ: ${axes.message.map(x => x.text).join(' / ')}
-価格: ${axes.pricing.map(x => x.text).join(' / ') || '未確認'}
-提供: ${axes.offering.map(x => x.text).join(' / ')}
-立ち位置: ${axes.positioning.map(x => x.text).join(' / ')}
-権威性: ${axes.authority.map(x => x.text).join(' / ')}`
+メッセージ: ${texts(axes.message)}
+価格: ${texts(axes.pricing) || '未確認'}
+提供: ${texts(axes.offering)}
+立ち位置: ${texts(axes.positioning)}
+権威性: ${texts(axes.authority)}`
   }).join('\n\n')
 }
 
@@ -557,17 +576,18 @@ export async function generateCompetitiveStrategy(): Promise<CompetitiveStrategy
   ])
   const competitorFacts = collectFacts(config, doc)
   const personaText = personas
-    ? personas.personas.map(p => `${p.name}: 課題=${p.pains.join('、')} 判断基準=${p.decisionCriteria.join('、')}`).join('\n')
+    ? personas.personas.slice(0, 4).map(p => `${p.name}: 課題=${p.pains.slice(0, 3).join('、')} 判断基準=${p.decisionCriteria.slice(0, 3).join('、')}`).join('\n')
     : 'ペルソナ未生成'
   const siteText = siteAudit.overall
-    ? `サイト診断: ${siteAudit.overall.summary}\n課題: ${siteAudit.overall.issues.join(' / ')}`
+    ? `サイト診断: ${siteAudit.overall.summary.slice(0, 800)}\n課題: ${siteAudit.overall.issues.slice(0, 4).join(' / ')}`
     : 'サイト診断未実行'
   const seoText = `GSC: 表示${seo.kpi.current.impressions}、クリック${seo.kpi.current.clicks}、CTR${(seo.kpi.current.ctr * 100).toFixed(1)}%、順位${seo.kpi.current.avgPosition.toFixed(1)}
 GA4: セッション${seo.kpi.current.sessions}、CV${seo.kpi.current.conversions}
-KW機会: ${opportunities.slice(0, 20).map(k => `${k.keyword}(vol${k.volume}, ${k.opportunity}, 競合:${k.competitors.map(c => c.name).join('・')})`).join(' / ') || '未取得'}`
+KW機会: ${opportunities.slice(0, 10).map(k => `${k.keyword}(vol${k.volume}, ${k.opportunity}, 競合:${k.competitors.map(c => c.name).join('・')})`).join(' / ') || '未取得'}`
   const parsed = await generateJson<StrategyResponse>(`あなたは日本のM&A・業務提携仲介会社「日本提携支援」の戦略コンサルタントです。
 以下の競合公式情報（Tier1）・自社SEO実績・サイト診断・仮説ペルソナから、比較表で終わらず日本提携支援が実行すべき施策を提案してください。
 事実と仮説を混同せず、根拠が不足する内容は caveats に残してください。一般論（高品質、丁寧等）ではなく、対象ページ/KW/導線まで具体化してください。
+出力は簡潔にしてください。文字列中の改行は禁止です。observedFacts と opportunities は各4件以内、actionsは4件以内、caveatsは2件以内にしてください。descriptionは100文字以内にしてください。
 
 ## 競合の観測事実
 ${competitorFacts}
@@ -581,7 +601,7 @@ ${siteText}
 ## 仮説ペルソナ
 ${personaText}
 
-JSONのみを返してください。
+JSONのみを返してください。末尾カンマは禁止です。
 {
  "summary":"3〜5文",
  "observedFacts":["競合の観測事実（出典に基づく）"],
