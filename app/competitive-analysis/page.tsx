@@ -83,7 +83,17 @@ export default function CompetitiveAnalysisPage() {
     setDocument(body.document ?? { updatedAt: '', competitors: {} })
     setHistory(body.history ?? [])
     setOpportunities(body.opportunities ?? [])
-    setUsage(body.usage ?? null)
+    const nextUsage = body.usage
+    setUsage(
+      nextUsage &&
+        Number.isFinite(Number(nextUsage.units_used_this_month)) &&
+        Number.isFinite(Number(nextUsage.units_limit_per_month))
+        ? {
+            units_used_this_month: Number(nextUsage.units_used_this_month),
+            units_limit_per_month: Number(nextUsage.units_limit_per_month),
+          }
+        : null,
+    )
   }, [])
 
   useEffect(() => {

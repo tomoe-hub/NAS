@@ -302,7 +302,16 @@ export async function fetchApiUsage(): Promise<{ units_used_this_month: number; 
       cache: 'no-store',
     })
     if (!res.ok) return null
-    return (await res.json()) as { units_used_this_month: number; units_limit_per_month: number }
+    // プラン・APIバージョンによって値が欠落することがあるため、
+    // UIへ返す前に数値であることを検証する。
+    const data = await res.json() as Partial<{
+      units_used_this_month: unknown
+      units_limit_per_month: unknown
+    }>
+    const used = Number(data.units_used_this_month)
+    const limit = Number(data.units_limit_per_month)
+    if (!Number.isFinite(used) || !Number.isFinite(limit)) return null
+    return { units_used_this_month: used, units_limit_per_month: limit }
   } catch {
     return null
   }
