@@ -1,5 +1,6 @@
 'use client'
 
+import SectionTabs from '@/components/navigation/SectionTabs'
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import {
   AlertTriangle,
@@ -200,6 +201,15 @@ export default function CompetitiveAnalysisPage() {
 
   return (
     <div className="w-full py-8 max-w-6xl mx-auto">
+      <SectionTabs
+        label="SEO・戦略分析"
+        tabs={[
+          { href: '/seo', label: 'SEO分析' },
+          { href: '/site-audit', label: '総合分析' },
+          { href: '/competitive-analysis', label: '競合分析' },
+          { href: '/personas', label: '仮説ペルソナ' },
+        ]}
+      />
       <div className="flex flex-wrap justify-between items-start gap-4 mb-6">
         <div>
           <h1 className="text-xl font-bold flex items-center gap-2" style={{ color: 'var(--ink)' }}>

@@ -1,5 +1,6 @@
 'use client'
 
+import SectionTabs from '@/components/navigation/SectionTabs'
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { SavedArticle } from '@/lib/types'
@@ -151,6 +152,13 @@ export default function PublishedArticlesPage() {
 
   return (
     <div className="w-full pt-6 pb-16 max-w-7xl mx-auto">
+      <SectionTabs
+        label="記事管理"
+        tabs={[
+          { href: '/articles', label: '保存済み記事' },
+          { href: '/published', label: '投稿済み記事' },
+        ]}
+      />
 
       {/* ── Header ── */}
       <div className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between mb-6">

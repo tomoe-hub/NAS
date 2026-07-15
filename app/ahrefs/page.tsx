@@ -1,5 +1,6 @@
 'use client'
 
+import SectionTabs from '@/components/navigation/SectionTabs'
 import { useState, useEffect, useMemo, useCallback, useRef } from 'react'
 import { useRouter } from 'next/navigation'
 import type { AhrefsDataset } from '@/lib/ahrefsCsvParser'
@@ -360,6 +361,14 @@ export default function AhrefsPage() {
       onDragLeave={() => setDragOver(false)}
       onDrop={e => { e.preventDefault(); setDragOver(false); handleUpload(e.dataTransfer.files) }}
     >
+      <SectionTabs
+        label="コンテンツ・キーワード分析"
+        tabs={[
+          { href: '/ahrefs', label: 'KW分析' },
+          { href: '/article-analytics', label: '記事分析' },
+          { href: '/performance', label: '成果測定' },
+        ]}
+      />
       {dragOver && (
         <div className="fixed inset-0 bg-[#002C93]/10 border-2 border-dashed border-[#002C93] rounded-xl z-50 pointer-events-none flex items-center justify-center">
           <p className="text-[#002C93] font-semibold text-lg">CSVをドロップしてインポート</p>

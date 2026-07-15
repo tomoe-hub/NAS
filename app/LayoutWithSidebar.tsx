@@ -5,37 +5,23 @@ import { usePathname } from 'next/navigation'
 import {
   FileEdit,
   FolderOpen,
-  Send,
   CalendarDays,
   BookMarked,
   BarChart3,
-  PieChart,
   LineChart,
-  Activity,
-  ScanSearch,
-  Crosshair,
   Database,
   ShieldAlert,
-  Images,
-  Users,
 } from 'lucide-react'
 import MainContentWidth from './MainContentWidth'
 
 const navItems = [
   { href: '/editor',    label: '記事を作成',          icon: FileEdit },
-  { href: '/articles',  label: '保存済み記事一覧',     icon: FolderOpen },
-  { href: '/published', label: '過去投稿済み記事一覧', icon: Send },
+  { href: '/articles',  label: '記事一覧',            icon: FolderOpen, activePaths: ['/articles', '/published'] },
   { href: '/schedule',  label: '投稿スケジュール',     icon: CalendarDays },
   { href: '/library',   label: 'KW/プロンプト',        icon: BookMarked },
-  { href: '/ahrefs',    label: 'KW分析',               icon: BarChart3 },
-  { href: '/article-analytics', label: '記事分析',      icon: PieChart },
-  { href: '/seo',       label: 'SEO分析',              icon: LineChart },
-  { href: '/performance', label: '成果測定',            icon: Activity },
-  { href: '/site-audit', label: '総合分析',             icon: ScanSearch },
-  { href: '/competitive-analysis', label: '競合分析',   icon: Crosshair },
-  { href: '/materials', label: '資料更新',              icon: Database },
-  { href: '/images',    label: '画像',                  icon: Images },
-  { href: '/personas',  label: '仮説ペルソナ',          icon: Users },
+  { href: '/ahrefs',    label: 'コンテンツ分析',        icon: BarChart3, activePaths: ['/ahrefs', '/article-analytics', '/performance'] },
+  { href: '/seo',       label: 'SEO・戦略分析',         icon: LineChart, activePaths: ['/seo', '/site-audit', '/competitive-analysis', '/personas'] },
+  { href: '/materials', label: '資料管理',              icon: Database, activePaths: ['/materials', '/images'] },
   { href: '/notice',    label: '注意書き',              icon: ShieldAlert },
 ]
 
@@ -98,8 +84,10 @@ export default function LayoutWithSidebar({
           className="flex-1 min-h-0 px-3 py-2.5 space-y-0.5 overflow-y-auto [&::-webkit-scrollbar]:hidden"
           style={{ scrollbarWidth: 'none' }}
         >
-          {navItems.map(({ href, label, icon: Icon }) => {
-            const isActive = pathname === href || pathname.startsWith(href + '/')
+          {navItems.map(({ href, label, icon: Icon, activePaths }) => {
+            const isActive = (activePaths ?? [href]).some(
+              path => pathname === path || pathname.startsWith(path + '/')
+            )
             return (
               <Link
                 key={href}

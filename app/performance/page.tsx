@@ -1,5 +1,6 @@
 'use client'
 
+import SectionTabs from '@/components/navigation/SectionTabs'
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import Link from 'next/link'
 import {
@@ -175,6 +176,14 @@ export default function PerformancePage() {
 
   return (
     <div className="w-full pt-6 pb-12">
+      <SectionTabs
+        label="コンテンツ・キーワード分析"
+        tabs={[
+          { href: '/ahrefs', label: 'KW分析' },
+          { href: '/article-analytics', label: '記事分析' },
+          { href: '/performance', label: '成果測定' },
+        ]}
+      />
       <div className="mb-2 flex flex-wrap items-start justify-between gap-4">
         <div>
           <h1 className="flex items-center gap-2 text-2xl font-bold" style={{ color: 'var(--ink)' }}>

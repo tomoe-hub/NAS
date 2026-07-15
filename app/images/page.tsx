@@ -1,5 +1,6 @@
 'use client'
 
+import SectionTabs from '@/components/navigation/SectionTabs'
 import { useState, useEffect, useRef, useCallback } from 'react'
 import {
   Images,
@@ -134,6 +135,13 @@ export default function ImagesPage() {
 
   return (
     <div className="w-full max-w-[1200px] mx-auto pb-16">
+      <SectionTabs
+        label="資料・画像管理"
+        tabs={[
+          { href: '/materials', label: '資料更新' },
+          { href: '/images', label: '画像' },
+        ]}
+      />
       {/* ─── Toast ─── */}
       {toast && (
         <div

@@ -6,6 +6,7 @@
  * 今どのテーマの記事がどれだけ投稿されているかを横棒グラフで可視化する。
  */
 
+import SectionTabs from '@/components/navigation/SectionTabs'
 import { useState, useEffect, useMemo, useCallback } from 'react'
 import { useRouter } from 'next/navigation'
 import { RefreshCw, PieChart, Hash, FolderTree, AlertCircle, Lightbulb, FileEdit } from 'lucide-react'
@@ -212,6 +213,14 @@ export default function ArticleAnalyticsPage() {
 
   return (
     <div className="w-full max-w-5xl py-8">
+      <SectionTabs
+        label="コンテンツ・キーワード分析"
+        tabs={[
+          { href: '/ahrefs', label: 'KW分析' },
+          { href: '/article-analytics', label: '記事分析' },
+          { href: '/performance', label: '成果測定' },
+        ]}
+      />
       <div className="flex items-center justify-between mb-1">
         <h1 className="text-2xl font-bold text-[#1A1A2E] flex items-center gap-2">
           <PieChart size={24} className="text-[#002C93]" />

@@ -1,5 +1,6 @@
 'use client'
 
+import SectionTabs from '@/components/navigation/SectionTabs'
 import { useState } from 'react'
 import { Database, RefreshCw, CheckCircle2, AlertCircle, FolderOpen, Lightbulb } from 'lucide-react'
 
@@ -39,6 +40,13 @@ export default function MaterialsPage() {
 
   return (
     <div className="w-full max-w-2xl py-8">
+      <SectionTabs
+        label="資料・画像管理"
+        tabs={[
+          { href: '/materials', label: '資料更新' },
+          { href: '/images', label: '画像' },
+        ]}
+      />
       <h1 className="text-2xl font-bold text-[#1A1A2E] mb-1">資料更新</h1>
       <p className="text-sm text-[#64748B] mb-8">
         S3の社内資料をAIが読める形式（ベクトルインデックス）に変換します。資料を更新・追加したときは必ずこちらでベクトル化を実行してください。
