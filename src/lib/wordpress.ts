@@ -975,6 +975,39 @@ async function resolveWordPressTagIds(
   return ids;
 }
 
+export interface WordPressPostStatusResult {
+  status: string;
+  link: string;
+}
+
+/**
+ * スラッグからWordPress側の現在の投稿ステータスを取得する（成果測定のWP同期用）。
+ * status=publish,future,draft,pending,private を含めて問い合わせるため認証必須。
+ */
+export async function fetchWordPressPostStatusBySlug(slug: string): Promise<WordPressPostStatusResult | null> {
+  const trimmedSlug = slug.trim();
+  if (!trimmedSlug) return null;
+
+  const config = getWordPressConfig();
+  if (!config) return null;
+
+  const url = `${config.wpUrl}/wp-json/wp/v2/posts?slug=${encodeURIComponent(trimmedSlug)}&status=publish,future,draft,pending,private&context=edit&per_page=1`;
+
+  try {
+    const res = await fetch(url, {
+      headers: { Authorization: config.authorization },
+      cache: 'no-store',
+    });
+    if (!res.ok) return null;
+    const data = (await res.json().catch(() => null)) as Array<{ status?: string; link?: string }> | null;
+    const post = data?.[0];
+    if (!post?.status) return null;
+    return { status: post.status, link: post.link ?? '' };
+  } catch {
+    return null;
+  }
+}
+
 /**
  * WordPress REST APIに投稿する
  */

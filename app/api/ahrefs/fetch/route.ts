@@ -24,6 +24,8 @@ export const maxDuration = 120
 
 const PREFIX    = 'kw-analysis/'
 const INDEX_KEY = `${PREFIX}index.json`
+/** 成果測定用: 自社流入KWの日次順位スナップショット保存先 */
+const HISTORY_PREFIX = `${PREFIX}history/`
 
 async function loadIndex(): Promise<DatasetMeta[]> {
   const obj = await getS3ObjectAsText(INDEX_KEY)
@@ -114,6 +116,25 @@ export async function POST(request: NextRequest) {
       rowCount:   organicRows.length,
       type:       'organic',
     })
+
+    // ── 成果測定用: 自社流入KWの順位スナップショットを日付キーで蓄積 ──
+    // datasets/ は最新で置換されるが、history/ は日付ごとに残し続ける（時系列の源泉）。
+    // 同日に複数回更新した場合は最新で上書き（1日1スナップショット）。
+    const snapshotDate = now.slice(0, 10)
+    const snapshot = {
+      date:      snapshotDate,
+      fetchedAt: now,
+      domain:    target,
+      country,
+      keywords: organicRows.map(row => ({
+        keyword:  row.keyword,
+        position: row.position,
+        volume:   row.volume,
+        traffic:  row.currentTraffic,
+        url:      row.url,
+      })),
+    }
+    await putS3Object(`${HISTORY_PREFIX}${snapshotDate}.json`, JSON.stringify(snapshot))
 
     // ── 2. 狙い目KW（Keywords Explorer overview）取得 ──────────────────
     let keResult: { id: string; fileName: string; rowCount: number } | null = null

@@ -67,6 +67,22 @@ export async function getS3ObjectAsText(key: string): Promise<{ key: string; con
   }
 }
 
+/** 複数キーをテキストとして並列取得（取得失敗・非テキストは除外） */
+export async function getS3ObjectsAsTextBatch(
+  keys: string[],
+  concurrency = 10
+): Promise<{ key: string; content: string }[]> {
+  const results: { key: string; content: string }[] = []
+  for (let i = 0; i < keys.length; i += concurrency) {
+    const batch = keys.slice(i, i + concurrency)
+    const settled = await Promise.all(batch.map(k => getS3ObjectAsText(k)))
+    for (const r of settled) {
+      if (r) results.push(r)
+    }
+  }
+  return results
+}
+
 /** S3オブジェクトをバイナリで取得（画像など）。Content-Type を返す */
 export async function getS3ObjectAsBuffer(key: string): Promise<{ body: Uint8Array; contentType?: string } | null> {
   const client = getClient()
