@@ -80,9 +80,9 @@ async function getPdfParserConstructor(): Promise<PdfTextParserConstructor> {
     'specifier',
     'return import(specifier)',
   ) as (specifier: string) => Promise<{ PDFParse?: PdfTextParserConstructor }>
-  const module = await dynamicImport('pdf-parse')
-  if (!module.PDFParse) throw new Error('PDF解析ライブラリを読み込めませんでした')
-  return module.PDFParse
+  const pdfParsePackage = await dynamicImport('pdf-parse')
+  if (!pdfParsePackage.PDFParse) throw new Error('PDF解析ライブラリを読み込めませんでした')
+  return pdfParsePackage.PDFParse
 }
 
 function filenameTitle(key: string): string {
