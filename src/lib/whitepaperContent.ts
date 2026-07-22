@@ -32,14 +32,14 @@ const PUBLISHED_WHITEPAPERS: Record<string, Omit<WhitepaperContentMeta, 's3Key' 
     description: '買い手企業が直面する課題を整理し、案件を待つのではなく寄せるための戦略的な事前準備と体制構築を解説する資料です。',
     downloadPageUrl: 'https://nihon-teikei.co.jp/whitepaper-download-polish/',
     targetKeyword: 'M&A 買い手 磨き上げ',
-    thumbnailKey: '',
+    thumbnailKey: 'Whitepapers/2026-04/ma-polish-guide.png.png',
   },
   'Whitepapers/2026-05/NTS_2026年版中小企業白書速報レポート.pdf': {
     title: 'NTS 2026年版中小企業白書速報レポート',
     description: '2026年版中小企業白書の速報データをもとに、中小企業を取り巻く経営環境と事業承継・M&Aの最新動向をまとめたレポートです。',
     downloadPageUrl: 'https://nihon-teikei.co.jp/whitepaper-download-seller/',
     targetKeyword: '中小企業白書 2026 M&A',
-    thumbnailKey: '',
+    thumbnailKey: 'Whitepapers/2026-05/中小企業白書速報サポート-1.png',
   },
 }
 

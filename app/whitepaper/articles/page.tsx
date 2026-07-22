@@ -59,6 +59,12 @@ function formatDate(value: string): string {
   }).format(date)
 }
 
+function thumbnailUrl(key: string): string | null {
+  return key
+    ? `/api/whitepaper-content/thumbnail?key=${encodeURIComponent(key)}`
+    : null
+}
+
 export default function WhitepaperArticlesPage() {
   const router = useRouter()
   const [items, setItems] = useState<WhitepaperContentItem[]>([])
@@ -250,49 +256,66 @@ export default function WhitepaperArticlesPage() {
           <p className="mt-1 text-xs" style={{ color: 'var(--text-muted)' }}>公開サイトの資料DLページとS3のPDF対応を確認してください。</p>
         </div>
       ) : (
-        <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
+        <div className="grid grid-cols-1 gap-5 md:grid-cols-2 xl:grid-cols-3">
           {filtered.map(item => (
             <button
               type="button"
               key={item.s3Key}
               onClick={() => openSettings(item)}
-              className="rounded-[14px] p-4 text-left transition-all hover:-translate-y-px hover:shadow-md"
+              className="group overflow-hidden rounded-[16px] text-left transition-all hover:-translate-y-1 hover:shadow-lg"
               style={{ background: 'var(--surface-raised)', border: '1px solid var(--border)', boxShadow: 'var(--shadow-sm)' }}
             >
-              <div className="flex items-start gap-3">
+              <div
+                className="relative flex h-[206px] items-center justify-center overflow-hidden p-4"
+                style={{ background: 'linear-gradient(145deg, #eef5ff 0%, #f8fbff 100%)' }}
+              >
+                {thumbnailUrl(item.thumbnailKey) ? (
+                  <img
+                    src={thumbnailUrl(item.thumbnailKey) ?? undefined}
+                    alt={`${item.title}の表紙`}
+                    className="h-full max-w-full rounded-[5px] object-contain shadow-[0_8px_18px_rgba(12,36,82,0.22)] transition-transform duration-300 group-hover:scale-[1.03]"
+                  />
+                ) : (
+                  <span
+                    className="flex h-20 w-16 items-center justify-center rounded-[8px]"
+                    style={{ color: '#1267f2', background: '#fff', boxShadow: '0 6px 16px rgba(12,36,82,0.12)' }}
+                  >
+                    <FileText size={29} />
+                  </span>
+                )}
                 <span
-                  className="flex h-10 w-10 shrink-0 items-center justify-center rounded-[10px]"
-                  style={{ color: '#1267f2', background: 'rgba(18,103,242,0.08)' }}
+                  className="absolute right-3 top-3 rounded-full px-2.5 py-1 text-[10px] font-bold"
+                  style={{ color: '#1267f2', background: 'rgba(255,255,255,0.92)', boxShadow: '0 2px 8px rgba(18,103,242,0.13)' }}
                 >
-                  <FileText size={20} />
+                  公開中資料
                 </span>
-                <div className="min-w-0 flex-1">
-                  <div className="flex items-start justify-between gap-2">
-                    <h2 className="line-clamp-2 text-sm font-bold" style={{ color: '#1267f2' }}>{item.title}</h2>
-                    <Settings2 size={15} className="shrink-0" style={{ color: 'var(--text-faint)' }} />
-                  </div>
-                  <p className="mt-1 truncate text-[10px]" style={{ color: 'var(--text-faint)' }}>{item.s3Key}</p>
-                  {item.description && (
-                    <p className="mt-2 line-clamp-2 text-xs leading-relaxed" style={{ color: 'var(--text-muted)' }}>{item.description}</p>
-                  )}
-                  <div className="mt-3 flex flex-wrap items-center gap-2">
-                    <span className="text-[10px]" style={{ color: 'var(--text-muted)' }}>{formatBytes(item.size)}</span>
-                    <span className="text-[10px]" style={{ color: 'var(--text-muted)' }}>{formatDate(item.lastModified)}</span>
-                    <span
-                      className="rounded-full px-2 py-0.5 text-[10px] font-bold"
-                      style={{
-                        color: item.extracted ? '#0f766e' : '#64748b',
-                        background: item.extracted ? 'rgba(15,159,110,0.10)' : 'rgba(100,116,139,0.09)',
-                      }}
-                    >
-                      {item.extracted ? '本文抽出済み' : '初回生成時に本文抽出'}
+              </div>
+              <div className="p-4">
+                <div className="flex items-start justify-between gap-2">
+                  <h2 className="line-clamp-2 text-[15px] font-bold leading-snug" style={{ color: '#1267f2' }}>{item.title}</h2>
+                  <Settings2 size={15} className="mt-0.5 shrink-0" style={{ color: 'var(--text-faint)' }} />
+                </div>
+                <p className="mt-1 truncate text-[10px]" style={{ color: 'var(--text-faint)' }}>{item.s3Key}</p>
+                {item.description && (
+                  <p className="mt-2 line-clamp-2 min-h-[36px] text-xs leading-relaxed" style={{ color: 'var(--text-muted)' }}>{item.description}</p>
+                )}
+                <div className="mt-3 flex flex-wrap items-center gap-2">
+                  <span className="text-[10px]" style={{ color: 'var(--text-muted)' }}>{formatBytes(item.size)}</span>
+                  <span className="text-[10px]" style={{ color: 'var(--text-muted)' }}>{formatDate(item.lastModified)}</span>
+                  <span
+                    className="rounded-full px-2 py-0.5 text-[10px] font-bold"
+                    style={{
+                      color: item.extracted ? '#0f766e' : '#64748b',
+                      background: item.extracted ? 'rgba(15,159,110,0.10)' : 'rgba(100,116,139,0.09)',
+                    }}
+                  >
+                    {item.extracted ? '本文抽出済み' : '初回生成時に本文抽出'}
+                  </span>
+                  {item.targetKeyword && (
+                    <span className="rounded-full bg-blue-50 px-2 py-0.5 text-[10px] font-bold text-blue-700">
+                      KW: {item.targetKeyword}
                     </span>
-                    {item.targetKeyword && (
-                      <span className="rounded-full bg-blue-50 px-2 py-0.5 text-[10px] font-bold text-blue-700">
-                        KW: {item.targetKeyword}
-                      </span>
-                    )}
-                  </div>
+                  )}
                 </div>
               </div>
             </button>
