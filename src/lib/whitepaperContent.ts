@@ -1,4 +1,5 @@
 import { createHash } from 'crypto'
+import { PDFParse } from 'pdf-parse'
 import {
   getS3ObjectAsBuffer,
   getS3ObjectAsText,
@@ -62,27 +63,6 @@ export interface WhitepaperContentItem extends WhitepaperContentMeta {
 export interface WhitepaperArticleResult {
   articleId: string
   title: string
-}
-
-interface PdfTextParser {
-  getText(): Promise<{ text: string }>
-  destroy(): Promise<void>
-}
-
-type PdfTextParserConstructor = new (options: { data: Uint8Array }) => PdfTextParser
-
-/**
- * pdf-parse はPDF.jsのESM依存を含み、Next.jsがルート読込時にバンドルすると
- * 開発サーバーでクラッシュする。必要な生成時だけNode.js標準のdynamic importで読む。
- */
-async function getPdfParserConstructor(): Promise<PdfTextParserConstructor> {
-  const dynamicImport = new Function(
-    'specifier',
-    'return import(specifier)',
-  ) as (specifier: string) => Promise<{ PDFParse?: PdfTextParserConstructor }>
-  const pdfParsePackage = await dynamicImport('pdf-parse')
-  if (!pdfParsePackage.PDFParse) throw new Error('PDF解析ライブラリを読み込めませんでした')
-  return pdfParsePackage.PDFParse
 }
 
 function filenameTitle(key: string): string {
@@ -179,7 +159,6 @@ async function extractPdfText(s3Key: string): Promise<string> {
 
   const object = await getS3ObjectAsBuffer(s3Key, WHITEPAPER_BUCKET)
   if (!object) throw new Error('S3からPDFを取得できませんでした')
-  const PDFParse = await getPdfParserConstructor()
   const parser = new PDFParse({ data: object.body })
   try {
     const result = await parser.getText()
