@@ -126,25 +126,25 @@ export default function WhitepaperArticlesPage() {
     setSuccess(null)
   }
 
-  const request = async (action: 'save' | 'generate') => {
-    if (!draft) return
+  const validateDraft = (): boolean => {
+    if (!draft) return false
     if (!draft.title.trim() || !draft.targetKeyword.trim() || !draft.downloadPageUrl.trim()) {
       setError('資料名・対象キーワード・資料DLページURLは必須です。')
-      return
+      return false
     }
+    return true
+  }
 
-    action === 'save' ? setSaving(true) : setGenerating(true)
+  const saveSettings = async (): Promise<boolean> => {
+    if (!draft || !validateDraft()) return false
+    setSaving(true)
     setError(null)
     setSuccess(null)
     try {
-      const response = await fetch(
-        action === 'generate'
-          ? '/api/whitepaper-content/generate'
-          : '/api/whitepaper-content',
-        {
+      const response = await fetch('/api/whitepaper-content', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(action === 'generate' ? draft : { ...draft, action }),
+        body: JSON.stringify({ ...draft, action: 'save' }),
       })
       const json = await readApiJson<{
         error?: string
@@ -152,11 +152,6 @@ export default function WhitepaperArticlesPage() {
         title?: string
       }>(response)
       if (!response.ok) throw new Error(json.error || '処理に失敗しました')
-
-      if (action === 'generate' && json.articleId) {
-        router.push(`/editor?articleId=${encodeURIComponent(json.articleId)}&step=2`)
-        return
-      }
       setSuccess('資料設定を保存しました。')
       await fetchItems()
       const refreshedResponse = await fetch('/api/whitepaper-content', { cache: 'no-store' })
@@ -166,10 +161,49 @@ export default function WhitepaperArticlesPage() {
         setSelected(next)
         setDraft({ ...next })
       }
+      return true
     } catch (e) {
       setError(e instanceof Error ? e.message : '処理に失敗しました')
+      return false
     } finally {
       setSaving(false)
+    }
+  }
+
+  const startArticleInEditor = async () => {
+    if (!draft || !validateDraft()) return
+    setGenerating(true)
+    setError(null)
+    try {
+      const saved = await saveSettings()
+      if (!saved) return
+
+      const prompt = `以下のホワイトペーパーを紹介し、資料ダウンロードを検討する読者に役立つSEO記事を作成してください。
+
+【紹介する資料】
+${draft.title}
+
+【資料概要】
+${draft.description || '資料の内容を分かりやすく紹介してください。'}
+
+【記事の目的】
+- 読者の悩み・課題を整理する
+- 資料で得られる知識や読むべき理由を具体的に示す
+- 資料に記載されていない数値・事例・断定的な内容は創作しない
+- 最後に「無料資料で詳しく確認する」の見出しを置き、次の資料DLページへ誘導する
+
+【資料ダウンロードページ】
+${draft.downloadPageUrl}
+
+【推奨構成】
+導入 → よくある課題 → 資料で分かること → おすすめの読者 → 無料資料で詳しく確認する`
+
+      const params = new URLSearchParams({
+        kwPrompt: prompt,
+        kwTarget: draft.targetKeyword,
+      })
+      router.push(`/editor?${params.toString()}`)
+    } finally {
       setGenerating(false)
     }
   }
@@ -192,7 +226,7 @@ export default function WhitepaperArticlesPage() {
             資料紹介記事を作成
           </h1>
           <p className="mt-1 text-sm" style={{ color: 'var(--text-muted)' }}>
-            公開サイトの資料DLページで提供中のPDFだけを対象に、CTA付き紹介記事を作成します。
+            公開サイトの資料DLページで提供中の資料をもとに、記事作成ページで下書きを開始します。
           </p>
         </div>
         <button
@@ -214,7 +248,7 @@ export default function WhitepaperArticlesPage() {
         className="mb-5 rounded-[13px] px-4 py-3 text-xs leading-relaxed"
         style={{ background: 'rgba(18,103,242,0.05)', border: '1px solid rgba(18,103,242,0.18)', color: 'var(--ink)' }}
       >
-        <strong>https://nihon-teikei.co.jp/whitepaper/</strong> に掲載中の資料だけを表示しています。PDF本文は選択した資料だけを抽出してS3へキャッシュします。記事内のCTAはPDF直リンクではなく、設定した
+        <strong>https://nihon-teikei.co.jp/whitepaper/</strong> に掲載中の資料だけを表示しています。選択した資料名・概要・対象KW・資料DLページをプロンプトへ自動設定し、既存の「記事を作成」画面へ引き継ぎます。CTAはPDF直リンクではなく、設定した
         <strong>資料ダウンロードページ</strong>へ誘導するため、DynamoDBのDL計測とパイプライン管理を維持できます。
       </div>
 
@@ -313,7 +347,7 @@ export default function WhitepaperArticlesPage() {
                       background: item.extracted ? 'rgba(15,159,110,0.10)' : 'rgba(100,116,139,0.09)',
                     }}
                   >
-                    {item.extracted ? '本文抽出済み' : '初回生成時に本文抽出'}
+                      {item.extracted ? '以前の本文抽出キャッシュあり' : '記事作成ページで下書き'}
                   </span>
                   {item.targetKeyword && (
                     <span className="rounded-full bg-blue-50 px-2 py-0.5 text-[10px] font-bold text-blue-700">
@@ -456,7 +490,7 @@ export default function WhitepaperArticlesPage() {
             <div className="mt-6 flex flex-wrap items-center justify-between gap-3">
               <button
                 type="button"
-                onClick={() => void request('save')}
+                onClick={() => void saveSettings()}
                 disabled={saving || generating}
                 className="inline-flex min-h-[38px] items-center gap-1.5 rounded-[9px] px-4 text-xs font-bold disabled:opacity-50"
                 style={{ color: '#1267f2', background: 'rgba(18,103,242,0.06)', border: '1px solid rgba(18,103,242,0.20)' }}
@@ -466,7 +500,7 @@ export default function WhitepaperArticlesPage() {
               </button>
               <button
                 type="button"
-                onClick={() => void request('generate')}
+                onClick={() => void startArticleInEditor()}
                 disabled={saving || generating}
                 className="inline-flex min-h-[40px] items-center gap-2 rounded-[10px] px-5 text-xs font-bold text-white transition-all hover:brightness-110 disabled:cursor-not-allowed disabled:opacity-50"
                 style={{
@@ -475,12 +509,12 @@ export default function WhitepaperArticlesPage() {
                 }}
               >
                 {generating ? <Loader2 size={15} className="animate-spin" /> : <PenLine size={15} />}
-                {generating ? 'PDFを読み取って記事生成中...' : 'CTA付き紹介記事を作成'}
+                {generating ? '記事作成ページを準備中...' : '記事作成ページで下書きを開始'}
               </button>
             </div>
             {generating && (
               <p className="mt-3 text-right text-[10px]" style={{ color: 'var(--text-faint)' }}>
-                初回はPDF本文抽出を含むため、1〜3分かかる場合があります。
+                資料情報とCTA設定を引き継いで、記事を作成ページへ移動します。
               </p>
             )}
           </div>
