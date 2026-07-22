@@ -223,13 +223,39 @@ async function uploadBase64ImageToWordPress(
  * インライン書式: **太字** のみサポート。
  * 太字はテーマに馴染む黒（本文色）で表示。色付き太字や下線は参考サイトに倣い廃止。
  */
+function linkifyBareUrls(text: string): string {
+  // すでにHTMLリンクとして指定されたCTAは保護し、二重変換を防ぐ。
+  const anchors: string[] = []
+  const protectedText = text.replace(/<a\b[^>]*>[\s\S]*?<\/a>/gi, anchor => {
+    const token = `@@NTSANCHOR${anchors.length}@@`
+    anchors.push(anchor)
+    return token
+  })
+
+  const linked = protectedText.replace(
+    /\bhttps?:\/\/[^\s<>"']+/gi,
+    rawUrl => {
+      // 日本語文の句読点や閉じ括弧はURLに含めない。
+      const url = rawUrl.replace(/[、。．，）】〉》〕］｝>,.!?]+$/u, '')
+      const trailing = rawUrl.slice(url.length)
+      if (!url) return rawUrl
+      return `<a href="${url}" target="_blank" rel="noopener noreferrer">${url}</a>${trailing}`
+    },
+  )
+
+  return linked.replace(/@@NTSANCHOR(\d+)@@/g, (_, index: string) =>
+    anchors[Number(index)] ?? '',
+  )
+}
+
 function applyInlineFormatting(text: string): string {
-  return text
+  const formatted = text
     .replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>')
     .replace(/__(.+?)__/g, '$1')
     .replace(/\*([^*]+?)\*/g, '<em>$1</em>')
     // 閉じ忘れなどで残った生の ** は投稿前に除去する
     .replace(/\*\*/g, '');
+  return linkifyBareUrls(formatted)
 }
 
 /** リスト行「・ラベル: 説明」のラベル部分を太字に（・で始まる行のみ対象） */
