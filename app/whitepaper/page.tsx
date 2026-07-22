@@ -226,6 +226,7 @@ export default function WhitepaperPage() {
         tabs={[
           { href: '/whitepaper', label: 'DLユーザー一覧' },
           { href: '/whitepaper/pipeline', label: 'フォローアップ パイプライン' },
+          { href: '/whitepaper/articles', label: '資料紹介記事を作成' },
         ]}
       />
       <div className="mb-6 flex flex-wrap items-start justify-between gap-4">

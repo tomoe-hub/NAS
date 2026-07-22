@@ -80,18 +80,27 @@ node scripts/test-clarity-api.mjs          # Clarity
 
 DL履歴の削除はパイプラインの詳細画面から行えます。削除するとDynamoDBの該当DL履歴とS3のパイプライン情報を完全に削除し、取り消せません。
 
+ページ内の「資料紹介記事を作成」では、公開サイトの `/whitepaper/` に掲載している資料だけを、`data-for-nas` バケットの `Whitepapers/` から一覧表示します。S3に存在するだけで未公開のPDFは表示・生成対象になりません。資料名・概要・対象キーワード・既存の資料DLページURLを設定すると、PDF本文を抽出してClaude BedrockがCTA付きの紹介記事を生成し、NASの記事エディタへ下書きとして渡します。CTAはPDF直リンクではなく資料DLページへ誘導するため、DynamoDBのDL計測とフォローアップパイプラインを維持できます。
+
+PDF本文の抽出結果は同じバケットの `whitepaper-content/extracted/`、資料設定は `whitepaper-content/catalog.json` に保存します。PDFを選択して直接本文を読むため、この機能専用のEmbedding作成は不要です。
+
+IAMには `data-for-nas` バケットに対する `s3:ListBucket` と、`Whitepapers/*`・`whitepaper-content/*` に対する `s3:GetObject` / `s3:PutObject` が必要です。記事生成には従来どおりBedrockの `bedrock:InvokeModel` 権限も使用します。
+
 ### 接続先
 
 - テーブル: `nts-whitepaper-leads`
 - パーティションキー: `email`
 - ソートキー: `downloaded_at`
 - リージョン: `ap-northeast-1`（`AWS_REGION` で変更可能）
+- PDFバケット: `data-for-nas`（`WHITEPAPER_S3_BUCKET_NAME` で変更可能）
+- PDFプレフィックス: `Whitepapers/`
 
 ### Vercel 環境変数
 
 | 変数名 | 内容 |
 | --- | --- |
 | `DYNAMODB_WHITEPAPER_LEADS_TABLE` | テーブル名。未設定時は `nts-whitepaper-leads` |
+| `WHITEPAPER_S3_BUCKET_NAME` | PDF・資料設定のS3バケット。未設定時は `data-for-nas` |
 | `AWS_REGION` | DynamoDB のリージョン（例: `ap-northeast-1`） |
 | `AWS_ACCESS_KEY_ID` | 対象テーブルを読み取れるIAMアクセスキー |
 | `AWS_SECRET_ACCESS_KEY` | 上記アクセスキーのシークレット |
