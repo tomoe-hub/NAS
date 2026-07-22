@@ -13,6 +13,7 @@ import {
   Mail,
   RefreshCw,
   Search,
+  Trash2,
   UserRound,
   Users,
   X,
@@ -121,6 +122,10 @@ export default function WhitepaperPipelinePage() {
   const [query, setQuery] = useState('')
   const [selected, setSelected] = useState<WhitepaperPipelineLead | null>(null)
   const [draft, setDraft] = useState<WhitepaperPipelineRecord | null>(null)
+  const [draggingLeadId, setDraggingLeadId] = useState<string | null>(null)
+  const [dropTarget, setDropTarget] = useState<PipelineStage | null>(null)
+  const [deleting, setDeleting] = useState(false)
+  const [deleteConfirm, setDeleteConfirm] = useState(false)
 
   const fetchPipeline = useCallback(async () => {
     setLoading(true)
@@ -156,6 +161,7 @@ export default function WhitepaperPipelinePage() {
   const openEditor = (lead: WhitepaperPipelineLead) => {
     setSelected(lead)
     setDraft({ ...lead.pipeline })
+    setDeleteConfirm(false)
   }
 
   const filteredLeads = useMemo(() => {
@@ -188,6 +194,53 @@ export default function WhitepaperPipelinePage() {
       setError(e instanceof Error ? e.message : '保存に失敗しました')
     } finally {
       setSaving(false)
+    }
+  }
+
+  const moveLeadToStage = async (leadId: string, stage: PipelineStage) => {
+    const lead = data.leads.find(item => item.leadId === leadId)
+    if (!lead || lead.pipeline.stage === stage) return
+
+    setSaving(true)
+    setError(null)
+    try {
+      const response = await fetch('/api/whitepaper-pipeline', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ ...lead.pipeline, stage }),
+      })
+      const json = await response.json() as { error?: string }
+      if (!response.ok) throw new Error(json.error || 'ステージを更新できませんでした')
+      await fetchPipeline()
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'ステージを更新できませんでした')
+    } finally {
+      setSaving(false)
+      setDraggingLeadId(null)
+      setDropTarget(null)
+    }
+  }
+
+  const deleteLead = async () => {
+    if (!selected) return
+    setDeleting(true)
+    setError(null)
+    try {
+      const response = await fetch('/api/whitepaper-pipeline', {
+        method: 'DELETE',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ leadId: selected.leadId }),
+      })
+      const json = await response.json() as { error?: string }
+      if (!response.ok) throw new Error(json.error || 'DL履歴を削除できませんでした')
+      setSelected(null)
+      setDraft(null)
+      setDeleteConfirm(false)
+      await fetchPipeline()
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'DL履歴を削除できませんでした')
+    } finally {
+      setDeleting(false)
     }
   }
 
@@ -293,8 +346,22 @@ export default function WhitepaperPipelinePage() {
               return (
                 <section
                   key={stage.key}
-                  className="w-[270px] shrink-0 rounded-[14px] p-2.5"
-                  style={{ background: stage.background, border: `1px solid ${stage.color}24` }}
+                  onDragOver={event => {
+                    event.preventDefault()
+                    event.dataTransfer.dropEffect = 'move'
+                    setDropTarget(stage.key)
+                  }}
+                  onDrop={event => {
+                    event.preventDefault()
+                    const leadId = event.dataTransfer.getData('text/plain') || draggingLeadId
+                    if (leadId) void moveLeadToStage(leadId, stage.key)
+                  }}
+                  className="w-[270px] shrink-0 rounded-[14px] p-2.5 transition-all"
+                  style={{
+                    background: dropTarget === stage.key ? 'rgba(18,103,242,0.14)' : stage.background,
+                    border: `1px solid ${dropTarget === stage.key ? '#1267f2' : `${stage.color}24`}`,
+                    boxShadow: dropTarget === stage.key ? '0 0 0 2px rgba(18,103,242,0.12)' : undefined,
+                  }}
                 >
                   <div className="mb-2.5 flex items-center justify-between px-1">
                     <h2 className="text-xs font-bold" style={{ color: stage.color }}>{stage.label}</h2>
@@ -312,12 +379,34 @@ export default function WhitepaperPipelinePage() {
                       const overdue = isOverdue(lead)
                       const dueToday = isDueToday(lead)
                       return (
-                        <button
-                          type="button"
+                        <div
                           key={lead.leadId}
+                          draggable={!saving}
+                          onDragStart={event => {
+                            setDraggingLeadId(lead.leadId)
+                            event.dataTransfer.effectAllowed = 'move'
+                            event.dataTransfer.setData('text/plain', lead.leadId)
+                          }}
+                          onDragEnd={() => {
+                            setDraggingLeadId(null)
+                            setDropTarget(null)
+                          }}
                           onClick={() => openEditor(lead)}
-                          className="w-full rounded-[11px] p-3 text-left transition-all hover:-translate-y-px hover:shadow-md"
-                          style={{ background: 'var(--surface-raised)', border: '1px solid var(--border)', boxShadow: '0 1px 3px rgba(20,44,92,0.06)' }}
+                          role="button"
+                          tabIndex={0}
+                          onKeyDown={event => {
+                            if (event.key === 'Enter' || event.key === ' ') {
+                              event.preventDefault()
+                              openEditor(lead)
+                            }
+                          }}
+                          className="w-full cursor-grab rounded-[11px] p-3 text-left transition-all hover:-translate-y-px hover:shadow-md active:cursor-grabbing"
+                          style={{
+                            background: 'var(--surface-raised)',
+                            border: '1px solid var(--border)',
+                            boxShadow: '0 1px 3px rgba(20,44,92,0.06)',
+                            opacity: draggingLeadId === lead.leadId ? 0.45 : 1,
+                          }}
                         >
                           <div className="flex items-start justify-between gap-2">
                             <p className="line-clamp-1 text-xs font-bold" style={{ color: 'var(--ink)' }}>{lead.name || lead.email}</p>
@@ -349,7 +438,7 @@ export default function WhitepaperPipelinePage() {
                               {lead.pipeline.notes}
                             </p>
                           )}
-                        </button>
+                        </div>
                       )
                     })}
                   </div>
@@ -455,19 +544,68 @@ export default function WhitepaperPipelinePage() {
               />
             </label>
 
-            <div className="mt-5 flex items-center justify-between gap-3">
-              <a
-                href={`mailto:${selected.email}`}
-                className="inline-flex items-center gap-1.5 text-xs font-bold hover:underline"
-                style={{ color: '#1267f2' }}
+            {deleteConfirm && (
+              <div
+                className="mt-4 rounded-[10px] p-3"
+                style={{ background: 'rgba(229,62,79,0.07)', border: '1px solid rgba(229,62,79,0.25)' }}
               >
-                <Mail size={14} />
-                メールを作成
-              </a>
+                <p className="text-xs font-bold" style={{ color: '#c02637' }}>
+                  このDL履歴を完全に削除しますか？
+                </p>
+                <p className="mt-1 text-[11px] leading-relaxed" style={{ color: '#9f1239' }}>
+                  DynamoDBのダウンロード履歴とS3のフォローアップ情報を削除します。この操作は取り消せません。
+                </p>
+                <div className="mt-3 flex justify-end gap-2">
+                  <button
+                    type="button"
+                    onClick={() => setDeleteConfirm(false)}
+                    disabled={deleting}
+                    className="min-h-[32px] rounded-[8px] px-3 text-xs font-bold disabled:opacity-50"
+                    style={{ color: 'var(--text-muted)', background: 'rgba(100,116,139,0.09)' }}
+                  >
+                    キャンセル
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => void deleteLead()}
+                    disabled={deleting}
+                    className="inline-flex min-h-[32px] items-center gap-1.5 rounded-[8px] px-3 text-xs font-bold text-white disabled:opacity-50"
+                    style={{ background: 'linear-gradient(135deg, #ef4444 0%, #b91c1c 100%)' }}
+                  >
+                    {deleting ? <Loader2 size={13} className="animate-spin" /> : <Trash2 size={13} />}
+                    完全に削除する
+                  </button>
+                </div>
+              </div>
+            )}
+
+            <div className="mt-5 flex items-center justify-between gap-3">
+              <div className="flex items-center gap-3">
+                <a
+                  href={`mailto:${selected.email}`}
+                  className="inline-flex items-center gap-1.5 text-xs font-bold hover:underline"
+                  style={{ color: '#1267f2' }}
+                >
+                  <Mail size={14} />
+                  メールを作成
+                </a>
+                {!deleteConfirm && (
+                  <button
+                    type="button"
+                    onClick={() => setDeleteConfirm(true)}
+                    disabled={saving || deleting}
+                    className="inline-flex items-center gap-1 text-xs font-bold hover:underline disabled:opacity-50"
+                    style={{ color: '#c02637' }}
+                  >
+                    <Trash2 size={13} />
+                    DL履歴を削除
+                  </button>
+                )}
+              </div>
               <button
                 type="button"
                 onClick={() => void save()}
-                disabled={saving}
+                disabled={saving || deleting}
                 className="inline-flex min-h-[38px] items-center gap-1.5 rounded-[9px] px-4 text-xs font-bold text-white transition-all hover:brightness-110 disabled:opacity-50"
                 style={{ background: 'linear-gradient(135deg, #1267f2 0%, #18a9e6 100%)', boxShadow: '0 4px 12px rgba(18,103,242,0.24)' }}
               >

@@ -173,3 +173,11 @@ export async function updateWhitepaperPipeline(
   await saveRecords(records)
   return record
 }
+
+/** DL履歴削除後に、そのユーザーに紐づくパイプライン情報もS3から削除する。 */
+export async function deleteWhitepaperPipeline(leadId: string): Promise<void> {
+  const records = await loadRecords()
+  if (!(leadId in records)) return
+  delete records[leadId]
+  await saveRecords(records)
+}

@@ -1,10 +1,12 @@
 import { NextRequest, NextResponse } from 'next/server'
 import {
   buildWhitepaperLeadId,
+  deleteWhitepaperPipeline,
   isPipelineStage,
   loadWhitepaperPipeline,
   updateWhitepaperPipeline,
 } from '@/lib/whitepaperPipeline'
+import { deleteWhitepaperLead } from '@/lib/whitepaperLeads'
 
 export const dynamic = 'force-dynamic'
 export const maxDuration = 30
@@ -74,6 +76,36 @@ export async function POST(request: NextRequest) {
   } catch {
     return NextResponse.json(
       { error: 'パイプライン情報を保存できませんでした。' },
+      { status: 500 },
+    )
+  }
+}
+
+export async function DELETE(request: NextRequest) {
+  try {
+    const body = await request.json() as Record<string, unknown>
+    const leadId = stringField(body.leadId, 600)
+    if (!leadId) {
+      return NextResponse.json({ error: '対象ユーザーを識別できません。' }, { status: 400 })
+    }
+
+    const separatorIndex = leadId.lastIndexOf('::')
+    if (separatorIndex <= 0) {
+      return NextResponse.json({ error: '対象ユーザーを識別できません。' }, { status: 400 })
+    }
+
+    const email = leadId.slice(0, separatorIndex)
+    const downloadedAt = leadId.slice(separatorIndex + 2)
+    if (buildWhitepaperLeadId(email, downloadedAt) !== leadId) {
+      return NextResponse.json({ error: '対象ユーザーを識別できません。' }, { status: 400 })
+    }
+
+    await deleteWhitepaperLead(email, downloadedAt)
+    await deleteWhitepaperPipeline(leadId)
+    return NextResponse.json({ ok: true })
+  } catch {
+    return NextResponse.json(
+      { error: 'DL履歴を削除できませんでした。DynamoDBの削除権限を確認してください。' },
       { status: 500 },
     )
   }

@@ -1,4 +1,4 @@
-import { ScanCommand } from '@aws-sdk/lib-dynamodb'
+import { DeleteCommand, ScanCommand } from '@aws-sdk/lib-dynamodb'
 import { getDynamoClient } from '@/lib/dynamodb/client'
 
 export const WHITEPAPER_LEADS_TABLE =
@@ -110,4 +110,15 @@ export async function loadWhitepaperLeads(): Promise<WhitepaperLeadsResult> {
     .sort((a, b) => parseDownloadedAt(b.downloadedAt) - parseDownloadedAt(a.downloadedAt))
 
   return { leads, summary: buildSummary(leads) }
+}
+
+/** 指定したDL履歴をDynamoDBから完全に削除する（email + downloaded_at の複合キー）。 */
+export async function deleteWhitepaperLead(email: string, downloadedAt: string): Promise<void> {
+  await getDynamoClient().send(new DeleteCommand({
+    TableName: WHITEPAPER_LEADS_TABLE,
+    Key: {
+      email,
+      downloaded_at: downloadedAt,
+    },
+  }))
 }
