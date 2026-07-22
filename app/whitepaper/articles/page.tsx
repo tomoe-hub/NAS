@@ -137,10 +137,14 @@ export default function WhitepaperArticlesPage() {
     setError(null)
     setSuccess(null)
     try {
-      const response = await fetch('/api/whitepaper-content', {
+      const response = await fetch(
+        action === 'generate'
+          ? '/api/whitepaper-content/generate'
+          : '/api/whitepaper-content',
+        {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ ...draft, action }),
+        body: JSON.stringify(action === 'generate' ? draft : { ...draft, action }),
       })
       const json = await readApiJson<{
         error?: string

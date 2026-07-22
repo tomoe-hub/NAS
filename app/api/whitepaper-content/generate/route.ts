@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
+import { generateWhitepaperArticle } from '@/lib/whitepaperArticleGeneration'
 import {
   listWhitepaperContent,
-  saveWhitepaperContentMeta,
   type WhitepaperContentMeta,
 } from '@/lib/whitepaperContent'
 
@@ -24,7 +24,9 @@ function isAllowedDownloadUrl(value: string): boolean {
   }
 }
 
-async function parseMeta(body: Record<string, unknown>): Promise<Omit<WhitepaperContentMeta, 'updatedAt'> | null> {
+async function parseMeta(
+  body: Record<string, unknown>,
+): Promise<Omit<WhitepaperContentMeta, 'updatedAt'> | null> {
   const s3Key = stringField(body.s3Key, 1_000)
   const title = stringField(body.title, 200)
   const description = stringField(body.description, 2_000)
@@ -51,19 +53,6 @@ async function parseMeta(body: Record<string, unknown>): Promise<Omit<Whitepaper
   return { s3Key, title, description, downloadPageUrl, targetKeyword, thumbnailKey }
 }
 
-export async function GET() {
-  try {
-    return NextResponse.json({ items: await listWhitepaperContent() }, {
-      headers: { 'Cache-Control': 'no-store' },
-    })
-  } catch {
-    return NextResponse.json(
-      { error: 'S3のホワイトペーパー一覧を取得できませんでした。' },
-      { status: 500 },
-    )
-  }
-}
-
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json() as Record<string, unknown>
@@ -74,12 +63,7 @@ export async function POST(request: NextRequest) {
         { status: 400 },
       )
     }
-
-    if (body.action === 'save') {
-      const saved = await saveWhitepaperContentMeta(meta)
-      return NextResponse.json({ item: saved })
-    }
-    return NextResponse.json({ error: '操作を識別できません。' }, { status: 400 })
+    return NextResponse.json(await generateWhitepaperArticle(meta))
   } catch (error) {
     const message = error instanceof Error ? error.message : '記事生成に失敗しました。'
     return NextResponse.json({ error: message }, { status: 500 })
