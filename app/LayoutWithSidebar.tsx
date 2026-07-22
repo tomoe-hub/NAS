@@ -9,6 +9,7 @@ import {
   BookMarked,
   BarChart3,
   LineChart,
+  FileDown,
   Database,
   ShieldAlert,
 } from 'lucide-react'
@@ -21,6 +22,7 @@ const navItems = [
   { href: '/library',   label: 'KW/プロンプト',        icon: BookMarked },
   { href: '/ahrefs',    label: 'コンテンツ分析',        icon: BarChart3, activePaths: ['/ahrefs', '/article-analytics', '/performance'] },
   { href: '/seo',       label: 'SEO・戦略分析',         icon: LineChart, activePaths: ['/seo', '/site-audit', '/competitive-analysis', '/personas'] },
+  { href: '/whitepaper', label: 'ホワイトペーパー',     icon: FileDown },
   { href: '/materials', label: '資料管理',              icon: Database, activePaths: ['/materials', '/images'] },
   { href: '/notice',    label: '注意書き',              icon: ShieldAlert },
 ]

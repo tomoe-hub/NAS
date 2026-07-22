@@ -11,7 +11,9 @@
   },
   "dependencies": {
     "@aws-sdk/client-bedrock-runtime": "^3.1006.0",
+    "@aws-sdk/client-dynamodb": "^3.1092.0",
     "@aws-sdk/client-s3": "^3.1003.0",
+    "@aws-sdk/lib-dynamodb": "^3.1092.0",
     "@google-analytics/data": "^6.1.0",
     "@google/generative-ai": "^0.24.1",
     "date-fns": "^4.4.0",

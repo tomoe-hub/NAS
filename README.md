@@ -73,3 +73,41 @@ node scripts/test-clarity-api.mjs          # Clarity
 6. デプロイ後、`/seo` を開いて「データ同期」を実行（初回はデータなしのため過去90日分を取得）
 
 ※ NIS（`C:\Users\goto_\NIS\web`）と同一サイトを計測する場合は、NIS の Vercel 環境変数の値をそのままコピーできます（NIS 側は `NIS_DEFAULT_GA4_PROPERTY_ID` / `NIS_DEFAULT_GSC_PROPERTY_URL` / `NIS_DEFAULT_CLARITY_PROJECT_ID` という変数名）。
+
+## ホワイトペーパー管理（/whitepaper）
+
+ホワイトペーパーをダウンロードしたユーザーを DynamoDB から読み取り、検索・絞り込み・詳細確認・CSV出力する管理ページです。個人情報を扱うため、初期版は読み取り専用で、レコードの更新・削除は行いません。
+
+### 接続先
+
+- テーブル: `nts-whitepaper-leads`
+- パーティションキー: `email`
+- ソートキー: `downloaded_at`
+- リージョン: `ap-northeast-1`（`AWS_REGION` で変更可能）
+
+### Vercel 環境変数
+
+| 変数名 | 内容 |
+| --- | --- |
+| `DYNAMODB_WHITEPAPER_LEADS_TABLE` | テーブル名。未設定時は `nts-whitepaper-leads` |
+| `AWS_REGION` | DynamoDB のリージョン（例: `ap-northeast-1`） |
+| `AWS_ACCESS_KEY_ID` | 対象テーブルを読み取れるIAMアクセスキー |
+| `AWS_SECRET_ACCESS_KEY` | 上記アクセスキーのシークレット |
+
+既存のAWS認証情報を利用できますが、IAMには対象テーブル限定で次の読み取り権限だけを付与してください。
+
+```json
+{
+  "Version": "2012-10-17",
+  "Statement": [
+    {
+      "Effect": "Allow",
+      "Action": [
+        "dynamodb:Scan",
+        "dynamodb:DescribeTable"
+      ],
+      "Resource": "arn:aws:dynamodb:ap-northeast-1:YOUR_ACCOUNT_ID:table/nts-whitepaper-leads"
+    }
+  ]
+}
+```
