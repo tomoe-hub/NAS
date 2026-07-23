@@ -123,3 +123,14 @@ IAMには `data-for-nas` バケットに対する `s3:ListBucket` と、`Whitepa
   ]
 }
 ```
+
+### DL通知メール
+
+ホワイトペーパーがダウンロードされると、DL処理を担う Lambda 関数 `nts-whitepaper-download`（`nts-whitepaper-leads` への書き込みを行っている本体）が、Amazon SES 経由で管理者へ通知メールを送信します。DynamoDB書き込み成功後にメール送信を試み、送信に失敗してもDL自体（署名付きURLの発行）は失敗させません。
+
+- 送信元: `SENDER_EMAIL`（環境変数、SESで検証済みのアドレスを指定。現在は `info@nihon-teikei.com`）
+- 送信先: `NOTIFY_EMAILS`（環境変数、カンマ区切りで複数指定可。現在は `shimizu_tomoki@cellmuller.com,ono@nihon-teikei.com`）
+- SESリージョン: `SES_REGION`（環境変数、現在は `us-east-1`）
+- 本文: 資料名・氏名・会社名・メール・電話番号・検討状況・DL日時・utmパラメータ
+
+SESがサンドボックスモードの場合、送信先アドレスも事前に検証（受信者がAWSからの確認メールのリンクをクリック）する必要があります。本番運用でサンドボックス解除（Production access）を申請すれば、未検証アドレスにも送信できます。
